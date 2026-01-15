@@ -2,16 +2,27 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
-    branches: [main]
+    types: [opened, synchronize, ready_for_review, reopened]
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "src/**/*.ts"
+    #   - "src/**/*.tsx"
+    #   - "src/**/*.js"
+    #   - "src/**/*.jsx"
 
 jobs:
   claude-review:
+    # Optional: Filter by PR author
+    # if: |
+    #   github.event.pull_request.user.login == 'external-contributor' ||
+    #   github.event.pull_request.user.login == 'new-developer' ||
+    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
+      pull-requests: read
+      issues: read
       id-token: write
 
     steps:
@@ -20,57 +31,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Check PR Size
-        id: pr-size
-        run: |
-          set -Eeuo pipefail
-
-          MAX_TOTAL_CHANGES=2000
-          MAX_FILES=50
-
-          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} --json additions,deletions,changedFiles,isDraft,title)
-
-          ADDITIONS=$(echo "$PR_DATA" | jq -r '.additions')
-          DELETIONS=$(echo "$PR_DATA" | jq -r '.deletions')
-          CHANGED_FILES=$(echo "$PR_DATA" | jq -r '.changedFiles')
-          IS_DRAFT=$(echo "$PR_DATA" | jq -r '.isDraft')
-          PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
-          TOTAL_CHANGES=$((ADDITIONS + DELETIONS))
-
-          echo "PR Statistics:"
-          echo "- Files changed: $CHANGED_FILES"
-          echo "- Additions: $ADDITIONS"
-          echo "- Deletions: $DELETIONS"
-          echo "- Total changes: $TOTAL_CHANGES"
-
-          if [[ "$PR_TITLE" == *"[skip-review]"* ]]; then
-            echo "skip_review=true" >> $GITHUB_OUTPUT
-          elif [ "$IS_DRAFT" = "true" ]; then
-            echo "skip_review=true" >> $GITHUB_OUTPUT
-          elif [ $TOTAL_CHANGES -gt $MAX_TOTAL_CHANGES ] || [ $CHANGED_FILES -gt $MAX_FILES ]; then
-            echo "skip_review=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip_review=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Run Claude Code Review
-        if: |
-          steps.pr-size.outputs.skip_review != 'true' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        uses: anthropics/claude-code-action@beta
-        continue-on-error: true
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          direct_prompt: |
-            Please review this pull request for the Good To Go (gtg) Python project.
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://code.claude.com/docs/en/cli-reference for available options
 
-            Focus on:
-            - Code quality and Python best practices
-            - Potential bugs or edge cases
-            - Security concerns (especially around GitHub token handling)
-            - Test coverage
-            - Type hints and documentation
-
-            This is a PR readiness detection tool for AI agents. Be constructive.
