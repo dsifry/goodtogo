@@ -40,9 +40,17 @@ htmlcov/
 *.swo
 *~
 
-# Beads
-.beads/
-!beads/config.yaml.example
+# Beads - Exclude local state, keep config
+# Pattern: Exclude database/cache, keep templates and committed config
+.beads/                     # Exclude entire .beads directory
+!.beads/config.yaml         # But include config.yaml if committed
+.beads/beads.db*            # SQLite database files (beads.db, beads.db-shm, beads.db-wal)
+.beads/issues.jsonl         # Generated JSONL (auto-synced from DB)
+.beads/bd.sock              # Daemon socket
+.beads/.local_version       # Local version tracking
+
+# Beads template (for distribution)
+!beads/config.yaml.example  # Include example config for users
 
 # OS
 .DS_Store
