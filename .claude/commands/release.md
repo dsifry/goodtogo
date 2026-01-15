@@ -197,7 +197,7 @@ Where `CHANGELOG_CURRENT.md` contains just the current release notes section.
 > ✓ Committed changes
 > ✓ Created tag v0.59.0
 > ✓ Pushed to origin
-> ✓ Created GitHub release: https://github.com/dsifry/goodtomerge/releases/tag/v0.59.0
+> ✓ Created GitHub release: https://github.com/dsifry/goodtogo/releases/tag/v0.59.0
 ```
 
 ## Rollback

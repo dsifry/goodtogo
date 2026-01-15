@@ -9,8 +9,8 @@ This module tests the GenericParser implementation, verifying:
 
 import pytest
 
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
-from goodtomerge.parsers.generic import GenericParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.parsers.generic import GenericParser
 
 
 class TestGenericParserCanParse:

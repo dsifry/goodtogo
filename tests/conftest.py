@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from goodtomerge.container import Container
-from goodtomerge.core.interfaces import GitHubPort
+from goodtogo.container import Container
+from goodtogo.core.interfaces import GitHubPort
 
 
 # Path to fixtures directory

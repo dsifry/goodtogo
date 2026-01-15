@@ -40,7 +40,7 @@ Save current session context for another agent to continue work.
    ```bash
    # Derive worktrees directory relative to repo root
    REPO_DIR="$(git rev-parse --show-toplevel)"
-   WORKTREES_DIR="${WORKTREES_DIR:-$(dirname "$REPO_DIR")/goodtomerge-worktrees}"
+   WORKTREES_DIR="${WORKTREES_DIR:-$(dirname "$REPO_DIR")/goodtogo-worktrees}"
    TARGET_DIR="$WORKTREES_DIR/$TARGET_WORKTREE"
    if [ -d "$TARGET_DIR" ]; then
      mkdir -p "$TARGET_DIR/.claude/handoffs"
@@ -114,10 +114,10 @@ Handoff created at:
 .claude/handoffs/202501101430-handoff.md
 
 Also copied to:
-~/Developer/goodtomerge-worktrees/agent-2/.claude/handoffs/
+~/Developer/goodtogo-worktrees/agent-2/.claude/handoffs/
 
 To continue in agent-2:
-cd ~/Developer/goodtomerge-worktrees/agent-2
+cd ~/Developer/goodtogo-worktrees/agent-2
 claude
 ```
 

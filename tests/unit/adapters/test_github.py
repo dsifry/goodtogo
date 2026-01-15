@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from goodtomerge.adapters.github import (
+from goodtogo.adapters.github import (
     GitHubAdapter,
     GitHubAPIError,
     GitHubRateLimitError,

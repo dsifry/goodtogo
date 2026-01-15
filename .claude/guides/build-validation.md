@@ -136,14 +136,14 @@ The build system supports different optimization strategies for different enviro
 
 ```bash
 # On production server (after CI/CD passed)
-cd /home/ubuntu/goodtomerge
+cd /home/ubuntu/goodtogo
 git pull origin main
 
 # Fast production build (types already validated)
 pnpm build:production
 
 # Restart application
-pm2 restart goodtomerge
+pm2 restart goodtogo
 ```
 
 ### CI/CD Configuration

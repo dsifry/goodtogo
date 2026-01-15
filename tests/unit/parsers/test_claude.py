@@ -10,8 +10,8 @@ This module tests the ClaudeCodeParser implementation, verifying:
 
 import pytest
 
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
-from goodtomerge.parsers.claude import ClaudeCodeParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.parsers.claude import ClaudeCodeParser
 
 
 class TestClaudeCodeParserCanParse:

@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "goodtomerge"
+name = "goodtogo"
 version = "0.1.0"
-description = "Language-neutral Claude Code workflow system for PR excellence"
+description = "Deterministic PR readiness detection for AI coding agents"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
     {name = "David Sifry", email = "david@sifry.com"}
 ]
-keywords = ["claude-code", "pr-workflow", "git", "automation", "beads"]
+keywords = ["pr-readiness", "github", "ai-agents", "code-review", "ci-cd", "automation"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -47,12 +47,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dsifry/goodtomerge"
-Repository = "https://github.com/dsifry/goodtomerge"
-Issues = "https://github.com/dsifry/goodtomerge/issues"
+Homepage = "https://github.com/dsifry/goodtogo"
+Repository = "https://github.com/dsifry/goodtogo"
+Issues = "https://github.com/dsifry/goodtogo/issues"
 
 [project.scripts]
-gtm = "goodtomerge.cli:main"
+gtg = "goodtogo.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -79,11 +79,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--cov=goodtomerge --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=goodtogo --cov-report=term-missing --cov-fail-under=100"
 
 [tool.coverage.run]
 branch = true
-source = ["src/goodtomerge"]
+source = ["src/goodtogo"]
 
 [tool.coverage.report]
 exclude_lines = [

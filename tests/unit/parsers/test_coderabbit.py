@@ -11,8 +11,8 @@ This module tests the CodeRabbitParser implementation, verifying:
 
 import pytest
 
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
-from goodtomerge.parsers.coderabbit import CodeRabbitParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.parsers.coderabbit import CodeRabbitParser
 
 
 class TestCodeRabbitParserCanParse:

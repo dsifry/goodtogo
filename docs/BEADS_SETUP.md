@@ -195,13 +195,13 @@ This:
 2. Commits to `beads-sync` branch
 3. Pushes to remote
 
-## Integration with GoodToMerge
+## Integration with Good To Go
 
-GoodToMerge includes sophisticated Beads integration:
+Good To Go includes sophisticated Beads integration:
 
 ### Beads Skill
 
-The `beads` skill in `.claude/plugins/goodtomerge/skills/beads/SKILL.md` provides:
+The `beads` skill in `.claude/plugins/goodtogo/skills/beads/SKILL.md` provides:
 
 - **18 specialized agents** for different task types
 - **Automatic context loading** via hooks
@@ -337,7 +337,7 @@ bd config set flush-debounce 1s
 ## Resources
 
 - **Official Docs**: [github.com/coderabbitai/beads](https://github.com/coderabbitai/beads)
-- **GoodToMerge Beads Skill**: `.claude/plugins/goodtomerge/skills/beads/SKILL.md`
+- **Good To Go Beads Skill**: `.claude/plugins/goodtogo/skills/beads/SKILL.md`
 - **Example Config**: `beads/config.yaml.example`
 
 ## Quick Reference

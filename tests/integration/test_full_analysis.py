@@ -18,9 +18,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from goodtomerge.container import Container
-from goodtomerge.core.analyzer import PRAnalyzer
-from goodtomerge.core.models import (
+from goodtogo.container import Container
+from goodtogo.core.analyzer import PRAnalyzer
+from goodtogo.core.models import (
     CommentClassification,
     PRAnalysisResult,
     PRStatus,
@@ -1010,7 +1010,7 @@ class TestErrorRedaction:
         This tests line 206-208 in analyzer.py where non-ValueError exceptions
         are wrapped with redact_error().
         """
-        from goodtomerge.core.errors import RedactedError
+        from goodtogo.core.errors import RedactedError
 
         # Setup - make get_pr raise an exception with sensitive data
         def raise_with_token(*args, **kwargs):
@@ -1422,7 +1422,7 @@ class TestCacheInvalidationOnNewCommit:
         This tests lines 255-256 in analyzer.py where cache is invalidated
         when a new commit is detected.
         """
-        from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
 
         # Create a fresh cache for this test to track invalidation
         cache = InMemoryCacheAdapter()
@@ -1482,8 +1482,8 @@ class TestParserFallbackLogic:
 
         This tests lines 473-474 in analyzer.py where it falls back to HUMAN parser.
         """
-        from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
-        from goodtomerge.parsers.generic import GenericParser
+        from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.parsers.generic import GenericParser
 
         # Create a container with limited parsers (missing some types)
         # Only include HUMAN and UNKNOWN parsers
@@ -1538,8 +1538,8 @@ class TestParserFallbackLogic:
 
         This tests lines 475-477 in analyzer.py where it uses the first available parser.
         """
-        from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
-        from goodtomerge.parsers.coderabbit import CodeRabbitParser
+        from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.parsers.coderabbit import CodeRabbitParser
 
         # Create a container with only one parser that doesn't match the comment
         # Only CODERABBIT parser available, no HUMAN fallback
@@ -1659,9 +1659,9 @@ class TestActionItemsOtherPriority:
 
         This tests lines 642-645 in analyzer.py where 'other' comments are counted.
         """
-        from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
-        from goodtomerge.core.interfaces import ReviewerParser
-        from goodtomerge.core.models import CommentClassification, Priority
+        from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.core.interfaces import ReviewerParser
+        from goodtogo.core.models import CommentClassification, Priority
 
         # Create a custom parser that always returns ACTIONABLE with TRIVIAL priority
         class TrivialParser(ReviewerParser):
@@ -1748,9 +1748,9 @@ class TestActionItemsOtherPriority:
 
         This tests the singular/plural logic in lines 643-645.
         """
-        from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
-        from goodtomerge.core.interfaces import ReviewerParser
-        from goodtomerge.core.models import CommentClassification, Priority
+        from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.core.interfaces import ReviewerParser
+        from goodtogo.core.models import CommentClassification, Priority
 
         # Create a custom parser that returns ACTIONABLE with UNKNOWN priority
         class UnknownPriorityParser(ReviewerParser):

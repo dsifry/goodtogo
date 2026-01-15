@@ -15,7 +15,7 @@ This mode is designed for when you ARE touching production servers, databases, o
 When production mode is active, Claude will:
 
 - **ACTIVELY REFUSE** to provide any destructive commands
-- **REQUIRE** environment setup (`cd /home/ubuntu/goodtomerge && source .env`) before operations
+- **REQUIRE** environment setup (`cd /home/ubuntu/goodtogo && source .env`) before operations
 - **ONLY PROVIDE** read-only commands for viewing, monitoring, and analysis
 - **BLOCK** any file modifications, service restarts, database writes, or state changes
 
@@ -109,7 +109,7 @@ tail -f logs/*.log, journalctl -u service-name
 
 ```bash
 ┌─[PRODUCTION SETUP - REQUIRED FIRST STEP]────────┐
-│ cd /home/ubuntu/goodtomerge && source .env       │
+│ cd /home/ubuntu/goodtogo && source .env       │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -139,7 +139,7 @@ Every response starts with:
 🔴 [PRODUCTION MODE ACTIVE - READ-ONLY ENFORCEMENT] 🔴
 ═══════════════════════════════════════════════════════════
 Server: [Detected from context]
-Working Dir: /home/ubuntu/goodtomerge
+Working Dir: /home/ubuntu/goodtogo
 Environment: MUST be sourced before operations
 ═══════════════════════════════════════════════════════════
 ⚠️  ALL DESTRUCTIVE COMMANDS BLOCKED
@@ -153,7 +153,7 @@ Commands presented in numbered boxes with expected output:
 
 ```
 ┌─[PRODUCTION COMMAND #1 - READ-ONLY]─────────────┐
-│ cd /home/ubuntu/goodtomerge && source .env       │
+│ cd /home/ubuntu/goodtogo && source .env       │
 │ tail -n 50 logs/cron.log                       │
 └──────────────────────────────────────────────────┘
 Expected: Last 50 lines of cron log output
@@ -163,7 +163,7 @@ Expected: Last 50 lines of cron log output
 
 Production mode loads server-specific information from `.claude/CLAUDE.local.md`:
 
-- **goodtomerge.ai**: Next.js web application server
+- **goodtogo.ai**: Next.js web application server
 - **inboxprocessor**: Email processing and cron jobs
 - **redis/puppeteer**: Redis cache and Puppeteer services
 
@@ -173,7 +173,7 @@ For database queries (SELECT only):
 
 ```bash
 ┌─[DATABASE QUERY - SELECT ONLY]──────────────────┐
-│ cd /home/ubuntu/goodtomerge && source .env       │
+│ cd /home/ubuntu/goodtogo && source .env       │
 │ psql $DATABASE_URL -c "SELECT id, email        │
 │   FROM \"User\" WHERE active = true LIMIT 10;" │
 └──────────────────────────────────────────────────┘
@@ -198,7 +198,7 @@ If you request a destructive operation, Claude will:
 ```
 ❌ REQUEST BLOCKED ❌
 
-You asked: "Restart the Next.js server on goodtomerge.ai"
+You asked: "Restart the Next.js server on goodtogo.ai"
 
 ⛔ This is a DESTRUCTIVE operation that modifies production state.
 
@@ -222,7 +222,7 @@ On first activation, Claude provides:
 
 ```bash
 # Environment setup
-cd /home/ubuntu/goodtomerge && source .env
+cd /home/ubuntu/goodtogo && source .env
 
 # System information
 uname -a
@@ -260,13 +260,13 @@ Production environment details stored _during this session_ in `.claude/producti
 **Typical workflow when investigating a production issue:**
 
 ```
-User: [SSHs into goodtomerge.ai production server]
+User: [SSHs into goodtogo.ai production server]
 User: /project:production-mode
 
 Claude: 🔴 [PRODUCTION MODE ACTIVE - READ-ONLY ENFORCEMENT] 🔴
         [Shows banner and initial discovery commands]
 
-User: [Provides output from goodtomerge.ai server]
+User: [Provides output from goodtogo.ai server]
 
 Claude: [Analyzes, provides context-aware read-only commands]
 
@@ -288,7 +288,7 @@ Claude: Production mode deactivated. Returning to local development.
 
 ## Best Practices
 
-1. **Always start with environment setup**: `cd /home/ubuntu/goodtomerge && source .env`
+1. **Always start with environment setup**: `cd /home/ubuntu/goodtogo && source .env`
 2. **Provide complete outputs** including errors and warnings
 3. **Redact sensitive data** like API keys, passwords, tokens
 4. **Mention unexpected behavior** if commands produce unusual results

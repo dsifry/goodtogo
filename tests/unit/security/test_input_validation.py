@@ -10,7 +10,7 @@ section of the GoodToMerge CLI Design document.
 
 import pytest
 
-from goodtomerge.core.validation import (
+from goodtogo.core.validation import (
     build_cache_key,
     validate_github_identifier,
     validate_pr_number,

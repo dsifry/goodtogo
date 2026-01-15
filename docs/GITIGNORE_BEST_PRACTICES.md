@@ -1,6 +1,6 @@
-# .gitignore Best Practices for GoodToMerge
+# .gitignore Best Practices for Good To Go
 
-This guide explains how to properly configure `.gitignore` in your projects when using GoodToMerge with Beads and Claude Code.
+This guide explains how to properly configure `.gitignore` in your projects when using Good To Go with Beads and Claude Code.
 
 ## Philosophy: Idempotent Files vs Local State
 
@@ -50,7 +50,7 @@ beads/config.yaml.example
 
 ## Complete .gitignore Template
 
-Here's a comprehensive `.gitignore` for projects using GoodToMerge:
+Here's a comprehensive `.gitignore` for projects using Good To Go:
 
 ```gitignore
 # Python (if using Python)

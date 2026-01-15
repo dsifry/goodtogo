@@ -1,0 +1,186 @@
+"""Thin CLI wrapper around PRAnalyzer.
+
+This module provides a command-line interface for the GoodToMerge library,
+enabling AI agents and humans to check PR readiness from the terminal or
+CI/CD pipelines.
+
+Exit codes:
+    0 - Ready to merge (PRStatus.READY)
+    1 - Actionable comments need addressing (PRStatus.ACTION_REQUIRED)
+    2 - Unresolved threads exist (PRStatus.UNRESOLVED_THREADS)
+    3 - CI/CD checks failing (PRStatus.CI_FAILING)
+    4 - Error fetching data (PRStatus.ERROR)
+
+Example:
+    $ gtm 123 --repo myorg/myrepo
+    $ gtm 123 --repo myorg/myrepo --format text --verbose
+    $ gtm 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+import click
+
+from goodtogo import __version__
+from goodtogo.container import Container
+from goodtogo.core.analyzer import PRAnalyzer
+from goodtogo.core.errors import redact_error
+from goodtogo.core.models import PRAnalysisResult, PRStatus
+
+EXIT_CODES: dict[PRStatus, int] = {
+    PRStatus.READY: 0,
+    PRStatus.ACTION_REQUIRED: 1,
+    PRStatus.UNRESOLVED_THREADS: 2,
+    PRStatus.CI_FAILING: 3,
+    PRStatus.ERROR: 4,
+}
+
+
+@click.command()
+@click.argument("pr_number", type=int)
+@click.option(
+    "--repo",
+    "-r",
+    required=True,
+    help="Repository in owner/repo format",
+)
+@click.option(
+    "--cache",
+    type=click.Choice(["sqlite", "redis", "none"]),
+    default="sqlite",
+    help="Cache backend (default: sqlite)",
+)
+@click.option(
+    "--cache-path",
+    default=".goodtogo/cache.db",
+    help="SQLite cache path",
+)
+@click.option(
+    "--redis-url",
+    envvar="REDIS_URL",
+    help="Redis URL (required if --cache=redis)",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["json", "text"]),
+    default="json",
+    help="Output format (default: json)",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Verbose output",
+)
+@click.version_option(version=__version__)
+def main(
+    pr_number: int,
+    repo: str,
+    cache: str,
+    cache_path: str,
+    redis_url: str | None,
+    output_format: str,
+    verbose: bool,
+) -> None:
+    """Check if a PR is ready to merge.
+
+    PR_NUMBER is the pull request number to check.
+
+    Exit codes:
+      0 - Ready to merge
+      1 - Actionable comments need addressing
+      2 - Unresolved threads exist
+      3 - CI/CD checks failing
+      4 - Error fetching data
+    """
+    # Get GitHub token from environment
+    github_token = os.environ.get("GITHUB_TOKEN")
+    if not github_token:
+        click.echo("Error: GITHUB_TOKEN environment variable required", err=True)
+        sys.exit(4)
+
+    # Parse owner/repo from --repo option
+    try:
+        owner, repo_name = repo.split("/")
+    except ValueError:
+        click.echo("Error: --repo must be in owner/repo format", err=True)
+        sys.exit(4)
+
+    # Create container and analyzer, then analyze PR
+    try:
+        container = Container.create_default(
+            github_token=github_token,
+            cache_type=cache,
+            cache_path=cache_path,
+            redis_url=redis_url,
+        )
+        analyzer = PRAnalyzer(container)
+        result = analyzer.analyze(owner, repo_name, pr_number)
+    except Exception as e:
+        # Redact sensitive data from error messages
+        redacted = redact_error(e)
+        if verbose:
+            click.echo(f"Error: {redacted}", err=True)
+        else:
+            click.echo(
+                "Error: Failed to analyze PR. Use --verbose for details.",
+                err=True,
+            )
+        sys.exit(4)
+
+    # Output result in requested format
+    if output_format == "json":
+        click.echo(result.model_dump_json(indent=2))
+    else:
+        _print_text_output(result, verbose)
+
+    sys.exit(EXIT_CODES[result.status])
+
+
+def _print_text_output(result: PRAnalysisResult, verbose: bool) -> None:
+    """Print human-readable output.
+
+    Displays a formatted summary of the PR analysis result suitable
+    for human consumption in the terminal.
+
+    Args:
+        result: The PR analysis result to display.
+        verbose: If True, show additional details like ambiguous comments.
+    """
+    status_icons = {
+        PRStatus.READY: "OK",
+        PRStatus.ACTION_REQUIRED: "!!",
+        PRStatus.UNRESOLVED_THREADS: "??",
+        PRStatus.CI_FAILING: "XX",
+        PRStatus.ERROR: "##",
+    }
+
+    icon = status_icons.get(result.status, "??")
+    click.echo(f"{icon} PR #{result.pr_number}: {result.status.value}")
+    click.echo(
+        f"   CI: {result.ci_status.state} "
+        f"({result.ci_status.passed}/{result.ci_status.total_checks} passed)"
+    )
+    click.echo(f"   Threads: {result.threads.resolved}/{result.threads.total} resolved")
+
+    if result.action_items:
+        click.echo("\nAction required:")
+        for item in result.action_items:
+            click.echo(f"   - {item}")
+
+    if verbose and result.ambiguous_comments:
+        click.echo("\nAmbiguous (needs investigation):")
+        for comment in result.ambiguous_comments:
+            # Truncate body to 80 chars for readability
+            body_preview = comment.body[:80]
+            if len(comment.body) > 80:
+                body_preview += "..."
+            click.echo(f"   - [{comment.author}] {body_preview}")
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

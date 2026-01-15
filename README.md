@@ -1,8 +1,8 @@
-# GoodToMerge
+# Good To Go
 
 **Deterministic PR readiness detection for AI coding agents**
 
-GoodToMerge helps AI agents (like Claude Code) know exactly when a PR is ready to merge. No guessing, no polling indefinitely, no missing comments.
+Good To Go helps AI agents (like Claude Code) know exactly when a PR is ready to merge. No guessing, no polling indefinitely, no missing comments.
 
 ## The Problem
 
@@ -17,14 +17,14 @@ Without deterministic answers, agents either wait too long, miss comments, or ke
 
 ## The Solution
 
-GoodToMerge provides **deterministic PR state analysis** via a simple CLI:
+Good To Go provides **deterministic PR state analysis** via a simple CLI:
 
 ```bash
-gtm check owner/repo 123
+gtg check owner/repo 123
 ```
 
 Returns:
-- **Exit code 0**: Ready to merge
+- **Exit code 0**: Ready to merge - good to go!
 - **Exit code 1**: Action required (actionable comments need fixes)
 - **Exit code 2**: Unresolved threads exist
 - **Exit code 3**: CI failing
@@ -33,7 +33,7 @@ Returns:
 ## Installation
 
 ```bash
-pip install goodtomerge
+pip install goodtogo
 ```
 
 That's it. No other dependencies required.
@@ -44,10 +44,10 @@ That's it. No other dependencies required.
 
 ```bash
 # Check if PR #123 in myorg/myrepo is ready to merge
-gtm check myorg/myrepo 123
+gtg check myorg/myrepo 123
 
 # With JSON output for programmatic use
-gtm check myorg/myrepo 123 --json
+gtg check myorg/myrepo 123 --json
 ```
 
 ### Authentication
@@ -61,14 +61,14 @@ export GITHUB_TOKEN=ghp_your_token_here
 Or pass it directly:
 
 ```bash
-gtm check myorg/myrepo 123 --token ghp_your_token_here
+gtg check myorg/myrepo 123 --token ghp_your_token_here
 ```
 
 ### Exit Codes
 
 | Code | Status | Meaning |
 |------|--------|---------|
-| 0 | READY | All clear - ready to merge |
+| 0 | READY | All clear - good to go! |
 | 1 | ACTION_REQUIRED | Actionable comments need fixes |
 | 2 | UNRESOLVED | Unresolved review threads |
 | 3 | CI_FAILING | CI/CD checks failing |
@@ -77,7 +77,7 @@ gtm check myorg/myrepo 123 --token ghp_your_token_here
 ### JSON Output
 
 ```bash
-gtm check myorg/myrepo 123 --json
+gtg check myorg/myrepo 123 --json
 ```
 
 Returns structured data including:
@@ -88,7 +88,7 @@ Returns structured data including:
 
 ## Supported Automated Reviewers
 
-GoodToMerge recognizes and classifies comments from:
+Good To Go recognizes and classifies comments from:
 
 - **CodeRabbit** - Critical/Major/Minor/Trivial severity
 - **Greptile** - Actionable comment detection
@@ -98,20 +98,20 @@ GoodToMerge recognizes and classifies comments from:
 
 ## For AI Agents
 
-If you're an AI agent, use GoodToMerge in your PR workflow:
+If you're an AI agent, use Good To Go in your PR workflow:
 
 ```python
 import subprocess
 import json
 
 result = subprocess.run(
-    ["gtm", "check", "owner/repo", "123", "--json"],
+    ["gtg", "check", "owner/repo", "123", "--json"],
     capture_output=True,
     text=True
 )
 
 if result.returncode == 0:
-    print("PR is ready to merge!")
+    print("Good to go! Ready to merge.")
 elif result.returncode == 1:
     data = json.loads(result.stdout)
     print(f"Action required: {data['action_items']}")
@@ -120,14 +120,14 @@ elif result.returncode == 1:
 Or use the Python API directly:
 
 ```python
-from goodtomerge import PRAnalyzer, Container
+from goodtogo import PRAnalyzer, Container
 
 container = Container.create_default(github_token="ghp_...")
 analyzer = PRAnalyzer(container)
 
 result = analyzer.analyze("owner", "repo", 123)
 if result.status == "READY":
-    print("Ready to merge!")
+    print("Good to go!")
 else:
     for item in result.action_items:
         print(f"- {item}")

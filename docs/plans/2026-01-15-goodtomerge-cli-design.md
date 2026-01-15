@@ -1,4 +1,4 @@
-# GoodToMerge CLI Design Specification
+# Good To Go CLI Design Specification
 
 **Version**: 0.1.0
 **Date**: 2026-01-15
@@ -6,7 +6,7 @@
 
 ## Overview
 
-GoodToMerge is a deterministic PR readiness detection library and CLI for AI coding agents. It answers the question: "Is this PR ready to merge?" without requiring AI inference, polling indefinitely, or missing comments.
+Good To Go is a deterministic PR readiness detection library and CLI for AI coding agents. It answers the question: "Is this PR ready to merge?" without requiring AI inference, polling indefinitely, or missing comments.
 
 ## Problem Statement
 
@@ -77,7 +77,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge fetches CI status, comments, threads
+2. Good To Go fetches CI status, comments, threads
 3. All CI checks pass, no actionable comments, all threads resolved
 4. Returns: PRStatus.READY (exit code 0)
 5. Agent proceeds to merge
@@ -100,7 +100,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge parses CodeRabbit comments, finds 3 with 🟡 Minor severity
+2. Good To Go parses CodeRabbit comments, finds 3 with 🟡 Minor severity
 3. Returns: PRStatus.ACTION_REQUIRED (exit code 1)
 4. Response includes actionable_comments with file paths and line numbers
 5. Agent iterates through comments and addresses each
@@ -123,7 +123,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge finds human comment: "This might need refactoring"
+2. Good To Go finds human comment: "This might need refactoring"
 3. Cannot determine if blocking → AMBIGUOUS classification
 4. Returns: PRStatus.ACTION_REQUIRED with requires_investigation=True
 5. Agent escalates to human or treats as potentially blocking
@@ -146,7 +146,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge fetches CI status, finds 2/5 checks still pending
+2. Good To Go fetches CI status, finds 2/5 checks still pending
 3. Returns: PRStatus.CI_FAILING (exit code 3) with ci_status.pending > 0
 4. Agent waits and retries after interval
 ```
@@ -168,7 +168,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Human runs: gtm check 123 --repo org/repo --format text
-2. GoodToMerge displays summary:
+2. Good To Go displays summary:
    ✅ PR #123: READY
    CI: success (5/5 passed)
    Threads: 8/8 resolved
@@ -193,7 +193,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge parses review bodies, finds "Outside diff range" section
+2. Good To Go parses review bodies, finds "Outside diff range" section
 3. Extracts file paths and line numbers from review body text
 4. Classifies as ACTIONABLE with MINOR priority
 5. Agent addresses these alongside inline comments
@@ -216,7 +216,7 @@ A Python library (with thin CLI wrapper) that:
 **Flow**:
 ```
 1. Agent calls: analyzer.analyze(owner, repo, pr_number)
-2. GoodToMerge identifies 3 reviewers: CodeRabbit, Greptile, human
+2. Good To Go identifies 3 reviewers: CodeRabbit, Greptile, human
 3. Parses each with appropriate parser (CodeRabbit → CodeRabbitParser, etc.)
 4. Aggregates: 2 CodeRabbit actionable, 1 Greptile actionable, 1 human ambiguous
 5. Returns unified response with all comments tagged by reviewer_type
@@ -580,7 +580,7 @@ def create_redis_cache(redis_url: str) -> RedisCacheAdapter:
 ### Directory Structure
 
 ```
-src/goodtomerge/
+src/goodtogo/
 ├── core/
 │   ├── __init__.py
 │   ├── analyzer.py          # PRAnalyzer - main orchestrator
@@ -890,7 +890,7 @@ class ReviewerParser(ABC):
 ## Dependency Injection
 
 ```python
-# goodtomerge/container.py
+# goodtogo/container.py
 from dataclasses import dataclass
 
 @dataclass
@@ -905,7 +905,7 @@ class Container:
         cls,
         github_token: str,
         cache_type: str = "sqlite",
-        cache_path: str = ".goodtomerge/cache.db",
+        cache_path: str = ".goodtogo/cache.db",
         redis_url: str | None = None,
     ) -> "Container":
         """Factory for standard configuration."""
@@ -959,12 +959,12 @@ def _create_default_parsers() -> dict[ReviewerType, ReviewerParser]:
 ## Public API
 
 ```python
-# goodtomerge/__init__.py
+# goodtogo/__init__.py
 """
-GoodToMerge - Deterministic PR readiness detection for AI agents.
+Good To Go - Deterministic PR readiness detection for AI agents.
 
 Usage:
-    from goodtomerge import PRAnalyzer, Container
+    from goodtogo import PRAnalyzer, Container
 
     container = Container.create_default(github_token="ghp_...")
     analyzer = PRAnalyzer(container)
@@ -977,8 +977,8 @@ Usage:
             print(f"- {item}")
 """
 
-from goodtomerge.core.analyzer import PRAnalyzer
-from goodtomerge.core.models import (
+from goodtogo.core.analyzer import PRAnalyzer
+from goodtogo.core.models import (
     PRAnalysisResult,
     PRStatus,
     Comment,
@@ -988,7 +988,7 @@ from goodtomerge.core.models import (
     CIStatus,
     ThreadSummary,
 )
-from goodtomerge.container import Container
+from goodtogo.container import Container
 
 __version__ = "0.1.0"
 
@@ -1009,7 +1009,7 @@ __all__ = [
 ## CLI Interface
 
 ```python
-# goodtomerge/cli.py
+# goodtogo/cli.py
 """Thin CLI wrapper around PRAnalyzer."""
 
 import json
@@ -1018,7 +1018,7 @@ import sys
 
 import click
 
-from goodtomerge import PRAnalyzer, Container, PRStatus
+from goodtogo import PRAnalyzer, Container, PRStatus
 
 
 EXIT_CODES = {
@@ -1041,7 +1041,7 @@ EXIT_CODES = {
 )
 @click.option(
     "--cache-path",
-    default=".goodtomerge/cache.db",
+    default=".goodtogo/cache.db",
     help="SQLite cache path",
 )
 @click.option(
@@ -1226,12 +1226,12 @@ tests/
 ```toml
 # pyproject.toml
 [tool.pytest.ini_options]
-addopts = "--cov=goodtomerge --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov=goodtogo --cov-report=term-missing --cov-fail-under=100"
 testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
-source = ["src/goodtomerge"]
+source = ["src/goodtogo"]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -1309,7 +1309,7 @@ Coverage target: 100% branch coverage on all validation functions.
 """
 
 import pytest
-from goodtomerge.core.validation import (
+from goodtogo.core.validation import (
     validate_github_identifier,
     validate_pr_number,
 )
@@ -1421,8 +1421,8 @@ Coverage target: 100% branch coverage on all token handling.
 """
 
 import pytest
-from goodtomerge.adapters.github import GitHubAdapter
-from goodtomerge.core.errors import redact_error
+from goodtogo.adapters.github import GitHubAdapter
+from goodtogo.core.errors import redact_error
 
 
 class TestGitHubAdapterTokenProtection:
@@ -1524,7 +1524,7 @@ import os
 import stat
 import tempfile
 import pytest
-from goodtomerge.adapters.cache_sqlite import SqliteCacheAdapter
+from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
 
 
 class TestSQLiteCachePermissions:
@@ -1594,7 +1594,7 @@ Coverage target: 100% branch coverage on cache key construction.
 """
 
 import pytest
-from goodtomerge.core.cache import build_cache_key
+from goodtogo.core.cache import build_cache_key
 
 
 class TestCacheKeySanitization:
@@ -1682,8 +1682,8 @@ import os
 import pytest
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
-from goodtomerge.cli import main
-from goodtomerge.core.analyzer import PRAnalyzer
+from goodtogo.cli import main
+from goodtogo.core.analyzer import PRAnalyzer
 
 
 class TestCLIErrorRedaction:
@@ -1693,7 +1693,7 @@ class TestCLIErrorRedaction:
         """Token in API error must not appear in output."""
         runner = CliRunner()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_supersecret123"}):
-            with patch("goodtomerge.container.Container.create_default") as mock:
+            with patch("goodtogo.container.Container.create_default") as mock:
                 mock.side_effect = Exception(
                     "API error: token ghp_supersecret123 is invalid"
                 )
@@ -1705,7 +1705,7 @@ class TestCLIErrorRedaction:
         """Credentials in connection URLs must be redacted."""
         runner = CliRunner()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test"}):
-            with patch("goodtomerge.container.Container.create_default") as mock:
+            with patch("goodtogo.container.Container.create_default") as mock:
                 mock.side_effect = Exception(
                     "Connection failed: https://ghp_test:x-oauth@api.github.com"
                 )
@@ -1716,7 +1716,7 @@ class TestCLIErrorRedaction:
         """Without --verbose, error details should be hidden."""
         runner = CliRunner()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test"}):
-            with patch("goodtomerge.container.Container.create_default") as mock:
+            with patch("goodtogo.container.Container.create_default") as mock:
                 mock.side_effect = Exception("Detailed error with ghp_secret")
                 result = runner.invoke(main, ["123", "--repo", "org/repo"])
                 # Should show generic message, not details
@@ -1729,7 +1729,7 @@ class TestAnalyzerErrorRedaction:
 
     def test_github_port_error_redacted(self):
         """Errors from GitHub port must be redacted before propagating."""
-        from goodtomerge.container import Container
+        from goodtogo.container import Container
 
         container = Container.create_for_testing()
         container.github.get_pr = MagicMock(
@@ -1745,7 +1745,7 @@ class TestAnalyzerErrorRedaction:
 
     def test_cache_error_redacted(self):
         """Errors from cache layer must be redacted."""
-        from goodtomerge.container import Container
+        from goodtogo.container import Container
 
         container = Container.create_for_testing()
         container.cache.get = MagicMock(
@@ -1847,7 +1847,7 @@ class TestAnalyzerErrorRedaction:
 ### Library Usage
 
 ```python
-from goodtomerge import PRAnalyzer, Container, PRStatus
+from goodtogo import PRAnalyzer, Container, PRStatus
 
 # Create container with default configuration
 container = Container.create_default(
@@ -1901,7 +1901,7 @@ fi
 # .github/workflows/pr-check.yml
 - name: Check PR Readiness
   run: |
-    pip install goodtomerge
+    pip install goodtogo
     gtm check ${{ github.event.pull_request.number }} \
       --repo ${{ github.repository }} \
       --format json > pr-status.json

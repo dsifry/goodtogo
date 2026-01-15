@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from goodtomerge.core.validation import build_cache_key
+from goodtogo.core.validation import build_cache_key
 
 
 class TestValidCacheKeyConstruction:

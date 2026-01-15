@@ -36,7 +36,7 @@ If no PR number is provided, uses the PR associated with the current branch.
    ```
 
 2. **Activate the pr-shepherd skill**:
-   Load and follow `.claude/plugins/goodtomerge/skills/pr-shepherd/SKILL.md`
+   Load and follow `.claude/plugins/goodtogo/skills/pr-shepherd/SKILL.md`
 
 3. **Begin monitoring loop** (background, every 60s):
    - Check CI status

@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the GoodToMerge repository.
+This file provides guidance to Claude Code when working with the Good To Go repository.
 
 ## Overview
 
-GoodToMerge is a **language-neutral** Claude Code workflow system. This project is written in Python, but the workflows and skills work with any programming language.
+Good To Go is a **language-neutral** Claude Code workflow system. This project is written in Python, but the workflows and skills work with any programming language.
 
 ## Essential Commands
 
@@ -98,16 +98,16 @@ All commands are in `.claude/commands/`:
 
 See all: `.claude/commands/`
 
-## GoodToMerge Skills (Auto-Activate)
+## Good To Go Skills (Auto-Activate)
 
-Skills in `.claude/plugins/goodtomerge/skills/` auto-activate based on context:
+Skills in `.claude/plugins/goodtogo/skills/` auto-activate based on context:
 
 | Skill | When It Activates |
 |-------|-------------------|
-| `goodtomerge:pr-shepherd` | After PR creation or on-demand |
-| `goodtomerge:handling-pr-comments` | When addressing PR feedback |
-| `goodtomerge:create-issue` | Creating comprehensive GitHub issues |
-| `goodtomerge:posthog-analytics` | When querying analytics (if configured) |
+| `goodtogo:pr-shepherd` | After PR creation or on-demand |
+| `goodtogo:handling-pr-comments` | When addressing PR feedback |
+| `goodtogo:create-issue` | Creating comprehensive GitHub issues |
+| `goodtogo:posthog-analytics` | When querying analytics (if configured) |
 
 ## Git Workflow
 
@@ -154,7 +154,7 @@ All worktrees share the same database - coordinate schema changes.
 │   ├── todo-management.md
 │   ├── session-management.md
 │   └── worktree-development.md
-└── plugins/goodtomerge/
+└── plugins/goodtogo/
     └── skills/        # Auto-activating skills
         ├── pr-shepherd/
         ├── handling-pr-comments/
@@ -164,7 +164,7 @@ All worktrees share the same database - coordinate schema changes.
 
 ## Language-Neutral Design
 
-GoodToMerge workflows are designed to work with **any language**:
+Good To Go workflows are designed to work with **any language**:
 
 - Commands use generic terms (BUILD, TEST, LINT)
 - Skills adapt to project context

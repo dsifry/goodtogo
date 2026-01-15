@@ -1,15 +1,15 @@
-# Contributing to GoodToMerge
+# Contributing to Good To Go
 
-Thank you for your interest in contributing to GoodToMerge! This guide covers everything you need to set up a development environment.
+Thank you for your interest in contributing to Good To Go! This guide covers everything you need to set up a development environment.
 
 ## Development vs Usage
 
-**If you just want to USE GoodToMerge**, see the [README](README.md) - you only need:
+**If you just want to USE Good To Go**, see the [README](README.md) - you only need:
 ```bash
-pip install goodtomerge
+pip install goodtogo
 ```
 
-**This guide is for DEVELOPING GoodToMerge itself** - contributing code, fixing bugs, adding features.
+**This guide is for DEVELOPING Good To Go itself** - contributing code, fixing bugs, adding features.
 
 ## Development Setup
 
@@ -22,8 +22,8 @@ pip install goodtomerge
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/dsifry/goodtomerge.git
-cd goodtomerge
+git clone https://github.com/dsifry/goodtogo.git
+cd goodtogo
 ```
 
 ### Install Development Dependencies
@@ -71,10 +71,10 @@ pytest && ruff check . && black --check . && mypy src/
 
 ### Test Coverage
 
-GoodToMerge requires **100% branch coverage**. Tests will fail if coverage drops below 100%.
+Good To Go requires **100% branch coverage**. Tests will fail if coverage drops below 100%.
 
 ```bash
-pytest --cov=goodtomerge --cov-report=term-missing
+pytest --cov=goodtogo --cov-report=term-missing
 ```
 
 ### Code Style
@@ -93,10 +93,10 @@ ruff check . --fix
 
 ## Project Architecture
 
-GoodToMerge uses **hexagonal architecture** (ports and adapters):
+Good To Go uses **hexagonal architecture** (ports and adapters):
 
 ```
-src/goodtomerge/
+src/goodtogo/
 ├── core/                 # Business logic (no external dependencies)
 │   ├── models.py        # Pydantic data models
 │   ├── interfaces.py    # Abstract interfaces (ports)
@@ -130,11 +130,11 @@ src/goodtomerge/
 
 To support a new automated reviewer:
 
-1. Create `src/goodtomerge/parsers/newreviewer.py`:
+1. Create `src/goodtogo/parsers/newreviewer.py`:
 
 ```python
-from goodtomerge.core.interfaces import ReviewerParser
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.core.interfaces import ReviewerParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
 
 class NewReviewerParser(ReviewerParser):
     @property
@@ -153,7 +153,7 @@ class NewReviewerParser(ReviewerParser):
 2. Register in `container.py`:
 
 ```python
-from goodtomerge.parsers.newreviewer import NewReviewerParser
+from goodtogo.parsers.newreviewer import NewReviewerParser
 
 # In create_default():
 parsers = [
@@ -178,7 +178,7 @@ pytest
 pytest tests/unit/parsers/test_coderabbit.py
 
 # With coverage report
-pytest --cov=goodtomerge --cov-report=html
+pytest --cov=goodtogo --cov-report=html
 open htmlcov/index.html
 
 # Verbose output
@@ -225,13 +225,13 @@ pytest -x
 
 ## Optional: Claude Code Workflow Tools
 
-If you use [Claude Code](https://claude.ai/code), GoodToMerge includes workflow tools in the `.claude/` directory:
+If you use [Claude Code](https://claude.ai/code), Good To Go includes workflow tools in the `.claude/` directory:
 
 ### Install Beads (Task Management)
 
 ```bash
 npm install -g @coderabbitai/beads
-bd init --prefix goodtomerge
+bd init --prefix goodtogo
 ```
 
 ### Available Commands
@@ -253,8 +253,8 @@ When contributing, keep these security principles in mind:
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/dsifry/goodtomerge/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/dsifry/goodtomerge/discussions)
+- **Issues**: [GitHub Issues](https://github.com/dsifry/goodtogo/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/dsifry/goodtogo/discussions)
 
 ## License
 

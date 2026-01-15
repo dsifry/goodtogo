@@ -15,9 +15,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from goodtomerge.cli import EXIT_CODES, main
-from goodtomerge.container import Container
-from goodtomerge.core.models import (
+from goodtogo.cli import EXIT_CODES, main
+from goodtogo.container import Container
+from goodtogo.core.models import (
     CacheStats,
     CICheck,
     CIStatus,
@@ -196,11 +196,11 @@ class TestJsonOutput:
         self, cli_runner: CliRunner, mock_analysis_result: PRAnalysisResult
     ):
         """JSON output should be parseable JSON."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = mock_analysis_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -221,11 +221,11 @@ class TestJsonOutput:
         self, cli_runner: CliRunner, mock_analysis_result: PRAnalysisResult
     ):
         """JSON output should include all result fields."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = mock_analysis_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -256,11 +256,11 @@ class TestJsonOutput:
         self, cli_runner: CliRunner, mock_analysis_result: PRAnalysisResult
     ):
         """JSON should be the default output format."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = mock_analysis_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -360,11 +360,11 @@ class TestTextOutput:
         self, cli_runner: CliRunner, ready_result: PRAnalysisResult
     ):
         """Text output should display the PR status."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = ready_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -382,11 +382,11 @@ class TestTextOutput:
         self, cli_runner: CliRunner, ready_result: PRAnalysisResult
     ):
         """Text output should show CI check summary."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = ready_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -404,11 +404,11 @@ class TestTextOutput:
         self, cli_runner: CliRunner, ready_result: PRAnalysisResult
     ):
         """Text output should show thread resolution summary."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = ready_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -426,11 +426,11 @@ class TestTextOutput:
         self, cli_runner: CliRunner, action_required_result: PRAnalysisResult
     ):
         """Text output should display action items when present."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = action_required_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -448,11 +448,11 @@ class TestTextOutput:
         self, cli_runner: CliRunner, ready_result: PRAnalysisResult
     ):
         """Text output should use status icons (OK, !!, ??, XX, ##)."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = ready_result
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -521,11 +521,11 @@ class TestExitCodes:
         """Exit code should match the PR status."""
         result_model = make_result(status)
 
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = result_model
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -557,7 +557,7 @@ class TestErrorRedaction:
 
     def test_github_token_is_redacted_in_errors(self, cli_runner: CliRunner):
         """GitHub tokens should be redacted from error messages."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             # Simulate an exception that contains a token
             mock_container_cls.create_default.side_effect = Exception(
                 "Auth failed with token ghp_secret123456789"
@@ -576,7 +576,7 @@ class TestErrorRedaction:
 
     def test_error_without_verbose_hides_details(self, cli_runner: CliRunner):
         """Without --verbose, error details should be hidden."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container_cls.create_default.side_effect = Exception(
                 "Network timeout connecting to api.github.com"
             )
@@ -594,7 +594,7 @@ class TestErrorRedaction:
 
     def test_error_with_verbose_shows_details(self, cli_runner: CliRunner):
         """With --verbose, redacted error details should be shown."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container_cls.create_default.side_effect = Exception(
                 "Network timeout connecting to api.github.com"
             )
@@ -610,7 +610,7 @@ class TestErrorRedaction:
 
     def test_url_credentials_are_redacted(self, cli_runner: CliRunner):
         """URL credentials should be redacted from error messages."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container_cls.create_default.side_effect = Exception(
                 "Failed to connect to redis://user:secretpass@redis.example.com"
             )
@@ -641,11 +641,11 @@ class TestCacheOptions:
 
     def test_cache_none_option(self, cli_runner: CliRunner):
         """--cache=none should be accepted."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = PRAnalysisResult(
                     status=PRStatus.READY,
@@ -804,11 +804,11 @@ class TestVerboseAmbiguousComments:
 
         This tests lines 176-183 in cli.py where ambiguous comments are displayed.
         """
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = result_with_ambiguous_comments
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -831,11 +831,11 @@ class TestVerboseAmbiguousComments:
 
         This tests lines 179-182 in cli.py where bodies are truncated.
         """
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = result_with_ambiguous_comments
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -855,11 +855,11 @@ class TestVerboseAmbiguousComments:
         self, cli_runner: CliRunner, result_with_ambiguous_comments: PRAnalysisResult
     ):
         """Without --verbose, ambiguous comments should not be shown."""
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = result_with_ambiguous_comments
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -900,11 +900,11 @@ class TestVerboseAmbiguousComments:
             cache_stats=None,
         )
 
-        with patch("goodtomerge.cli.Container") as mock_container_cls:
+        with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
             mock_container_cls.create_default.return_value = mock_container
 
-            with patch("goodtomerge.cli.PRAnalyzer") as mock_analyzer_cls:
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
                 mock_analyzer = MagicMock()
                 mock_analyzer.analyze.return_value = result_no_ambiguous
                 mock_analyzer_cls.return_value = mock_analyzer
@@ -933,7 +933,7 @@ class TestCLIMainEntryPoint:
         This verifies that the main function exists and is the Click command.
         Line 187 calls main() when the module is run directly.
         """
-        from goodtomerge.cli import main
+        from goodtogo.cli import main
 
         # main should be a Click command
         assert callable(main)
@@ -949,7 +949,7 @@ class TestCLIMainEntryPoint:
 
         # Run the CLI module with --help flag to avoid actually needing GITHUB_TOKEN
         result = subprocess.run(
-            [sys.executable, "-m", "goodtomerge.cli", "--help"],
+            [sys.executable, "-m", "goodtogo.cli", "--help"],
             capture_output=True,
             text=True,
             timeout=10,

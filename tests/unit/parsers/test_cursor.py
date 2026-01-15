@@ -8,8 +8,8 @@ This module tests the CursorBugbotParser implementation, verifying:
 
 import pytest
 
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
-from goodtomerge.parsers.cursor import CursorBugbotParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.parsers.cursor import CursorBugbotParser
 
 
 class TestCursorBugbotParserCanParse:

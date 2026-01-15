@@ -1,6 +1,6 @@
 """Tests for GoodToMerge core data models.
 
-This module tests all Pydantic models and enums defined in goodtomerge.core.models,
+This module tests all Pydantic models and enums defined in goodtogo.core.models,
 ensuring proper instantiation, validation, and serialization behavior.
 """
 
@@ -9,7 +9,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from goodtomerge.core.models import (
+from goodtogo.core.models import (
     CacheStats,
     CICheck,
     CIStatus,

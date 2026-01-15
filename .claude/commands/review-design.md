@@ -175,6 +175,6 @@ After 3 iterations, use `--force-override` to proceed anyway (documents technica
 
 ## Related Skills
 
-- `goodtomerge:design-review-gate` - The gate implementation
-- `goodtomerge:brainstorming-extension` - Auto-triggers this after brainstorming
+- `goodtogo:design-review-gate` - The gate implementation
+- `goodtogo:brainstorming-extension` - Auto-triggers this after brainstorming
 - `superpowers:brainstorming` - The design creation skill

@@ -66,7 +66,7 @@ id: "2024-01-03-feature-auth-system"
 name: "Authentication System Implementation"
 date: "2024-01-03T10:30:00Z"
 branch: "feature/auth-system"
-repo: "dsifry/goodtomerge"
+repo: "dsifry/goodtogo"
 tags: ["auth", "security", "feature"]
 summary: "Implemented OAuth2 authentication with Google"
 related_prs: [385, 386]

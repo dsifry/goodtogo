@@ -45,7 +45,7 @@ Create a new git worktree for parallel development work.
 
    # Otherwise, use git directly (derive path relative to repo location):
    REPO_DIR="$(git rev-parse --show-toplevel)"
-   WORKTREE_DIR="${WORKTREES_DIR:-$(dirname "$REPO_DIR")/goodtomerge-worktrees}/$NAME"
+   WORKTREE_DIR="${WORKTREES_DIR:-$(dirname "$REPO_DIR")/goodtogo-worktrees}/$NAME"
    git worktree add "$WORKTREE_DIR" -b "$BRANCH" 2>/dev/null || \
    git worktree add "$WORKTREE_DIR" "$BRANCH"
    ```
@@ -67,13 +67,13 @@ Create a new git worktree for parallel development work.
 ```
 Worktree created successfully!
 
-Location: /path/to/goodtomerge-worktrees/agent-2
+Location: /path/to/goodtogo-worktrees/agent-2
 Branch: feature/new-feature
 Port: 3001
 Redis Prefix: agent-2:
 
 To start working in this worktree:
-  cd /path/to/goodtomerge-worktrees/agent-2
+  cd /path/to/goodtogo-worktrees/agent-2
   claude
 
 Would you like me to create a handoff document for the new agent?
@@ -81,7 +81,7 @@ Would you like me to create a handoff document for the new agent?
 
 > **Note**: The actual path depends on where your main repository is located.
 > Worktrees are created as siblings to the repo directory (e.g., if repo is at
-> `~/Projects/goodtomerge`, worktrees go in `~/Projects/goodtomerge-worktrees/`).
+> `~/Projects/goodtogo`, worktrees go in `~/Projects/goodtogo-worktrees/`).
 
 ## Notes
 

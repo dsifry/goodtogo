@@ -41,17 +41,17 @@ From the **main repository** (not from another worktree):
 pnpm worktree:setup agent-2 feature/new-feature
 
 # Or using git directly
-git worktree add ~/Developer/goodtomerge-worktrees/agent-2 -b feature/new-feature
+git worktree add ~/Developer/goodtogo-worktrees/agent-2 -b feature/new-feature
 ```
 
 ### Worktree Directory Structure
 
 ```text
 ~/Developer/
-├── goodtomerge/                      # Main repository
+├── goodtogo/                      # Main repository
 │   └── .claude/
 │       └── handoffs/               # Handoff documents
-└── goodtomerge-worktrees/            # All worktrees live here
+└── goodtogo-worktrees/            # All worktrees live here
     ├── agent-2/
     │   └── .claude/
     │       └── handoffs/
@@ -84,7 +84,7 @@ This prevents port conflicts and Redis key collisions.
 2. Navigate and start Claude:
 
    ```bash
-   cd ~/Developer/goodtomerge-worktrees/agent-2
+   cd ~/Developer/goodtogo-worktrees/agent-2
    claude
    ```
 
@@ -177,11 +177,11 @@ Task({
   subagent_type: "general-purpose",
   run_in_background: true,
   prompt: `
-You are working in a git worktree at /path/to/goodtomerge-worktrees/fix-123
+You are working in a git worktree at /path/to/goodtogo-worktrees/fix-123
 on branch fix/issue-123.
 
 IMPORTANT: Change to the worktree directory first:
-cd /path/to/goodtomerge-worktrees/fix-123
+cd /path/to/goodtogo-worktrees/fix-123
 
 Your task: [Detailed task description]
 
@@ -349,7 +349,7 @@ pnpm install
 git worktree list
 
 # Remove a stale worktree
-git worktree remove ~/Developer/goodtomerge-worktrees/old-feature
+git worktree remove ~/Developer/goodtogo-worktrees/old-feature
 
 # Prune worktree references
 git worktree prune
@@ -365,7 +365,7 @@ git worktree prune
 
 ```bash
 # Create a new branch for this worktree
-git worktree add ~/Developer/goodtomerge-worktrees/new-wt -b new-branch-name
+git worktree add ~/Developer/goodtogo-worktrees/new-wt -b new-branch-name
 
 # Or check out a different branch in the existing worktree first
 ```

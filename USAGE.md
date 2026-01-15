@@ -1,11 +1,11 @@
-# GoodToMerge Usage Guide
+# Good To Go Usage Guide
 
-Complete documentation for the `gtm` CLI tool.
+Complete documentation for the `gtg` CLI tool.
 
 ## Installation
 
 ```bash
-pip install goodtomerge
+pip install goodtogo
 ```
 
 ### Requirements
@@ -16,24 +16,24 @@ pip install goodtomerge
 ### Verify Installation
 
 ```bash
-gtm --version
+gtg --version
 ```
 
 ## Authentication
 
-GoodToMerge needs a GitHub token to access PR data.
+Good To Go needs a GitHub token to access PR data.
 
 ### Environment Variable (Recommended)
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-gtm check owner/repo 123
+gtg check owner/repo 123
 ```
 
 ### Command Line Flag
 
 ```bash
-gtm check owner/repo 123 --token ghp_your_token_here
+gtg check owner/repo 123 --token ghp_your_token_here
 ```
 
 ### Creating a Token
@@ -45,12 +45,12 @@ gtm check owner/repo 123 --token ghp_your_token_here
 
 ## Commands
 
-### `gtm check`
+### `gtg check`
 
 Check if a PR is ready to merge.
 
 ```bash
-gtm check <owner/repo> <pr_number> [OPTIONS]
+gtg check <owner/repo> <pr_number> [OPTIONS]
 ```
 
 #### Arguments
@@ -73,21 +73,21 @@ gtm check <owner/repo> <pr_number> [OPTIONS]
 
 ```bash
 # Basic check
-gtm check myorg/myrepo 123
+gtg check myorg/myrepo 123
 
 # JSON output for scripting
-gtm check myorg/myrepo 123 --json
+gtg check myorg/myrepo 123 --json
 
 # Verbose output
-gtm check myorg/myrepo 123 --verbose
+gtg check myorg/myrepo 123 --verbose
 
 # Fresh data (no cache)
-gtm check myorg/myrepo 123 --no-cache
+gtg check myorg/myrepo 123 --no-cache
 ```
 
 ## Exit Codes
 
-GoodToMerge uses exit codes for deterministic status reporting:
+Good To Go uses exit codes for deterministic status reporting:
 
 | Code | Status | Description | Action |
 |------|--------|-------------|--------|
@@ -100,7 +100,7 @@ GoodToMerge uses exit codes for deterministic status reporting:
 ### Using Exit Codes in Scripts
 
 ```bash
-gtm check owner/repo 123
+gtg check owner/repo 123
 case $? in
   0) echo "Ready to merge!" ;;
   1) echo "Comments need attention" ;;
@@ -112,7 +112,7 @@ esac
 
 ## JSON Output Format
 
-With `--json`, GoodToMerge outputs structured data:
+With `--json`, Good To Go outputs structured data:
 
 ```json
 {
@@ -161,7 +161,7 @@ With `--json`, GoodToMerge outputs structured data:
 
 ## Comment Classification
 
-GoodToMerge classifies comments from automated reviewers:
+Good To Go classifies comments from automated reviewers:
 
 ### Classifications
 
@@ -185,7 +185,7 @@ For actionable comments:
 
 ## Supported Reviewers
 
-GoodToMerge recognizes these automated reviewers:
+Good To Go recognizes these automated reviewers:
 
 ### CodeRabbit
 
@@ -218,9 +218,9 @@ GoodToMerge recognizes these automated reviewers:
 
 ## Caching
 
-GoodToMerge caches API responses to reduce GitHub API calls:
+Good To Go caches API responses to reduce GitHub API calls:
 
-- Cache location: `~/.goodtomerge/cache.db`
+- Cache location: `~/.goodtogo/cache.db`
 - Default TTL: 5 minutes
 - Use `--no-cache` to bypass
 
@@ -258,11 +258,11 @@ Check repository name and token permissions.
 
 ## Python API
 
-For programmatic use, import GoodToMerge directly:
+For programmatic use, import Good To Go directly:
 
 ```python
-from goodtomerge import PRAnalyzer, Container
-from goodtomerge.core.models import PRStatus
+from goodtogo import PRAnalyzer, Container
+from goodtogo.core.models import PRStatus
 
 # Create container with dependencies
 container = Container.create_default(github_token="ghp_...")
@@ -290,7 +290,7 @@ elif result.status == PRStatus.CI_FAILING:
 ### Available Exports
 
 ```python
-from goodtomerge import (
+from goodtogo import (
     PRAnalyzer,      # Main analyzer class
     Container,       # Dependency injection container
     PRStatus,        # Status enum

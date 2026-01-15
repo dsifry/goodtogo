@@ -14,7 +14,7 @@ import tempfile
 
 import pytest
 
-from goodtomerge.adapters.cache_sqlite import SqliteCacheAdapter
+from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
 
 
 class TestSQLiteCacheFilePermissions:

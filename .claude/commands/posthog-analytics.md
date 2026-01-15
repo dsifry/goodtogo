@@ -31,7 +31,7 @@ Securely query PostHog for user behavior, analytics, LLM costs, and feature flag
 ## Steps
 
 1. **Activate the posthog-analytics skill**:
-   Load and follow `.claude/plugins/goodtomerge/skills/posthog-analytics/SKILL.md`
+   Load and follow `.claude/plugins/goodtogo/skills/posthog-analytics/SKILL.md`
 
 2. **Query PostHog** following the skill's secure patterns for credential handling
 

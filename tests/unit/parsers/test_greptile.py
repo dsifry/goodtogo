@@ -9,8 +9,8 @@ This module tests the GreptileParser implementation, verifying:
 
 import pytest
 
-from goodtomerge.core.models import CommentClassification, Priority, ReviewerType
-from goodtomerge.parsers.greptile import GreptileParser
+from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.parsers.greptile import GreptileParser
 
 
 class TestGreptileParserCanParse:

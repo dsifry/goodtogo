@@ -43,7 +43,7 @@ Create a comprehensive, well-structured GitHub issue with embedded agent instruc
 ## Steps
 
 1. **Activate the create-issue skill**:
-   Load and follow `.claude/plugins/goodtomerge/skills/create-issue/SKILL.md`
+   Load and follow `.claude/plugins/goodtogo/skills/create-issue/SKILL.md`
 
 2. **Gather information** through the interactive flow:
    - Issue type (Feature/Bug/Refactor)

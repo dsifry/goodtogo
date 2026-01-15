@@ -17,8 +17,8 @@ from unittest.mock import patch
 
 import pytest
 
-from goodtomerge.adapters.cache_memory import CacheEntry, InMemoryCacheAdapter
-from goodtomerge.core.models import CacheStats
+from goodtogo.adapters.cache_memory import CacheEntry, InMemoryCacheAdapter
+from goodtogo.core.models import CacheStats
 
 
 class TestCacheEntry:
@@ -88,7 +88,7 @@ class TestInMemoryCacheAdapterExpiration:
         assert cache.get("key1") == "value1"
 
         # Wait for expiration (or mock time)
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             # First call is during set, second is during get
             mock_time.time.return_value = time.time() + 2  # 2 seconds in future
             result = cache.get("key1")
@@ -107,7 +107,7 @@ class TestInMemoryCacheAdapterExpiration:
         assert stats_before.misses == 0
 
         # Expire the entry using mock
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             mock_time.time.return_value = time.time() + 2
             cache.get("key1")
 
@@ -120,7 +120,7 @@ class TestInMemoryCacheAdapterExpiration:
         cache.set("key1", "value1", ttl_seconds=1)
         assert len(cache) == 1
 
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             mock_time.time.return_value = time.time() + 2
             cache.get("key1")
 
@@ -219,7 +219,7 @@ class TestInMemoryCacheAdapterCleanupExpired:
 
         # Add entries with different TTLs
         current_time = time.time()
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             mock_time.time.return_value = current_time
             cache.set("expired1", "value1", ttl_seconds=1)
             cache.set("expired2", "value2", ttl_seconds=2)
@@ -228,7 +228,7 @@ class TestInMemoryCacheAdapterCleanupExpired:
         assert len(cache) == 3
 
         # Advance time by 3 seconds
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             mock_time.time.return_value = current_time + 3
             cache.cleanup_expired()
 
@@ -315,7 +315,7 @@ class TestInMemoryCacheAdapterLen:
         cache = InMemoryCacheAdapter()
         current_time = time.time()
 
-        with patch("goodtomerge.adapters.cache_memory.time") as mock_time:
+        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
             mock_time.time.return_value = current_time
             cache.set("expired", "value", ttl_seconds=1)
 

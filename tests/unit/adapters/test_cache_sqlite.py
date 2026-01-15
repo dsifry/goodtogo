@@ -23,8 +23,8 @@ from unittest.mock import patch
 
 import pytest
 
-from goodtomerge.adapters.cache_sqlite import SqliteCacheAdapter
-from goodtomerge.core.models import CacheStats
+from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
+from goodtogo.core.models import CacheStats
 
 
 class TestSqliteCacheAdapterInit:

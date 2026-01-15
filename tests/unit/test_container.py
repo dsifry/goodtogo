@@ -10,15 +10,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from goodtomerge.adapters.cache_memory import InMemoryCacheAdapter
-from goodtomerge.adapters.cache_sqlite import SqliteCacheAdapter
-from goodtomerge.container import (
+from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
+from goodtogo.container import (
     Container,
     MockGitHubAdapter,
     _create_cache,
     _create_default_parsers,
 )
-from goodtomerge.core.models import ReviewerType
+from goodtogo.core.models import ReviewerType
 
 
 # ============================================================================
@@ -99,7 +99,7 @@ class TestContainerCreateDefault:
         """create_default should create container with SQLite cache."""
         cache_path = str(tmp_path / "cache.db")
 
-        with patch("goodtomerge.container.GitHubAdapter") as mock_github:
+        with patch("goodtogo.container.GitHubAdapter") as mock_github:
             mock_github.return_value = MagicMock()
 
             container = Container.create_default(
@@ -117,16 +117,16 @@ class TestContainerCreateDefault:
         # Create a mock Redis cache adapter
         mock_redis_adapter = MagicMock()
 
-        with patch("goodtomerge.container.GitHubAdapter") as mock_github:
+        with patch("goodtogo.container.GitHubAdapter") as mock_github:
             mock_github.return_value = MagicMock()
 
             # Mock the Redis import and class
             with patch.dict(
                 "sys.modules",
-                {"goodtomerge.adapters.cache_redis": MagicMock()},
+                {"goodtogo.adapters.cache_redis": MagicMock()},
             ):
                 with patch(
-                    "goodtomerge.container._create_cache"
+                    "goodtogo.container._create_cache"
                 ) as mock_create_cache:
                     mock_create_cache.return_value = mock_redis_adapter
 
@@ -139,13 +139,13 @@ class TestContainerCreateDefault:
         assert container is not None
         mock_create_cache.assert_called_once_with(
             "redis",
-            ".goodtomerge/cache.db",
+            ".goodtogo/cache.db",
             "redis://localhost:6379",
         )
 
     def test_create_default_with_none_cache(self):
         """create_default should create container with no-op cache."""
-        with patch("goodtomerge.container.GitHubAdapter") as mock_github:
+        with patch("goodtogo.container.GitHubAdapter") as mock_github:
             mock_github.return_value = MagicMock()
 
             container = Container.create_default(
@@ -161,7 +161,7 @@ class TestContainerCreateDefault:
         """create_default should pass token to GitHubAdapter."""
         cache_path = str(tmp_path / "cache.db")
 
-        with patch("goodtomerge.container.GitHubAdapter") as mock_github:
+        with patch("goodtogo.container.GitHubAdapter") as mock_github:
             mock_github.return_value = MagicMock()
 
             Container.create_default(
@@ -216,7 +216,7 @@ class TestCreateCacheFunction:
 
         # Inject the mock module before calling _create_cache
         original_modules = sys.modules.copy()
-        sys.modules["goodtomerge.adapters.cache_redis"] = mock_module
+        sys.modules["goodtogo.adapters.cache_redis"] = mock_module
 
         try:
             # Now call _create_cache which will import from the mocked module
@@ -227,8 +227,8 @@ class TestCreateCacheFunction:
             assert result is mock_redis_instance
         finally:
             # Restore original modules
-            if "goodtomerge.adapters.cache_redis" in sys.modules:
-                del sys.modules["goodtomerge.adapters.cache_redis"]
+            if "goodtogo.adapters.cache_redis" in sys.modules:
+                del sys.modules["goodtogo.adapters.cache_redis"]
             # Also clear from the import cache
             for key in list(sys.modules.keys()):
                 if "cache_redis" in key:
