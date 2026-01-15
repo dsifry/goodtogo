@@ -18,7 +18,26 @@ Activate this skill when ANY of these conditions are true:
 
 ### Phase 1: Discover and Filter Comments
 
-Run the filtering script to identify actionable comments:
+First, run `gtg check` to get a quick overview of PR status and actionable comments:
+
+```bash
+# Get PR status and actionable comments
+OWNER=$(gh repo view --json owner -q .owner.login)
+REPO=$(gh repo view --json name -q .name)
+
+gtg check "$OWNER/$REPO" "$PR_NUMBER" --json > /tmp/gtg-status.json
+
+# Show status
+echo "Status: $(jq -r '.status' /tmp/gtg-status.json)"
+echo "Actionable comments: $(jq -r '.actionable_comments | length' /tmp/gtg-status.json)"
+echo "Unresolved threads: $(jq -r '.threads.unresolved' /tmp/gtg-status.json)"
+
+# List action items
+echo "Action items:"
+jq -r '.action_items[]' /tmp/gtg-status.json
+```
+
+For detailed filtering and categorization, also run the filtering script:
 
 ```bash
 # Filter actionable vs non-actionable comments

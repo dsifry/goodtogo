@@ -1,0 +1,78 @@
+name: PR Readiness Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  gtg-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install gtg
+        run: pip install gtg
+
+      - name: Run gtg check
+        id: gtg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e  # Don't exit on non-zero
+          gtg check ${{ github.repository }} ${{ github.event.pull_request.number }} --json > gtg-result.json
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Parse status for summary
+          STATUS=$(jq -r '.status' gtg-result.json)
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+
+          # Show results
+          echo "## GTG Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          case $EXIT_CODE in
+            0)
+              echo "### ✅ Good to Go!" >> $GITHUB_STEP_SUMMARY
+              echo "All CI checks passing, no actionable comments, all threads resolved." >> $GITHUB_STEP_SUMMARY
+              ;;
+            1)
+              echo "### ⚠️ Action Required" >> $GITHUB_STEP_SUMMARY
+              echo "Actionable comments need attention:" >> $GITHUB_STEP_SUMMARY
+              jq -r '.action_items[] | "- " + .' gtg-result.json >> $GITHUB_STEP_SUMMARY
+              ;;
+            2)
+              echo "### 💬 Unresolved Threads" >> $GITHUB_STEP_SUMMARY
+              UNRESOLVED=$(jq -r '.threads.unresolved' gtg-result.json)
+              echo "$UNRESOLVED unresolved review threads need resolution." >> $GITHUB_STEP_SUMMARY
+              ;;
+            3)
+              echo "### ❌ CI Failing" >> $GITHUB_STEP_SUMMARY
+              echo "Failing checks:" >> $GITHUB_STEP_SUMMARY
+              jq -r '.ci_status.checks[] | select(.conclusion == "failure") | "- " + .name' gtg-result.json >> $GITHUB_STEP_SUMMARY
+              ;;
+            4)
+              echo "### ⚠️ Error" >> $GITHUB_STEP_SUMMARY
+              echo "Could not fetch PR data." >> $GITHUB_STEP_SUMMARY
+              ;;
+          esac
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Checked by [gtg](https://github.com/dsifry/goodtogo) - Good To Go PR readiness tool*" >> $GITHUB_STEP_SUMMARY
+
+          exit $EXIT_CODE
+
+      - name: Upload gtg results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtg-results
+          path: gtg-result.json

@@ -96,56 +96,59 @@ echo "Shepherding PR #$PR_NUMBER"
 
 ## Phase 2: Monitoring Loop (Background)
 
-Run these checks every 60 seconds:
+Run `gtg check` every 60 seconds to get deterministic PR status:
 
-### Check CI Status
-
-```bash
-# Get all check runs
-gh pr checks $PR_NUMBER --json name,state,conclusion --jq '.[] | "\(.name): \(.state) \(.conclusion)"'
-
-# Check for failures
-FAILED_CHECKS=$(gh pr checks $PR_NUMBER --json name,conclusion --jq '[.[] | select(.conclusion == "FAILURE")] | length')
-```
-
-### Check Review Comments
+### Using gtg for PR Status
 
 ```bash
-# Get comment count and latest
-COMMENTS=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/comments" --paginate)
-COMMENT_COUNT=$(echo "$COMMENTS" | jq 'length')
+# Run gtg check and capture exit code
+gtg check "$OWNER/$REPO" "$PR_NUMBER" --json > /tmp/gtg-status.json
+GTG_EXIT=$?
 
-# Get unresolved thread count
-UNRESOLVED=$(gh api graphql -f query='
-  query($owner: String!, $repo: String!, $pr: Int!) {
-    repository(owner: $owner, name: $repo) {
-      pullRequest(number: $pr) {
-        reviewThreads(first: 100) {
-          nodes {
-            isResolved
-          }
-        }
-      }
-    }
-  }
-' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" \
-  --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+# Parse the JSON for details
+STATUS=$(jq -r '.status' /tmp/gtg-status.json)
+CI_STATE=$(jq -r '.ci_status.state' /tmp/gtg-status.json)
+UNRESOLVED=$(jq -r '.threads.unresolved' /tmp/gtg-status.json)
+ACTIONABLE_COUNT=$(jq -r '.actionable_comments | length' /tmp/gtg-status.json)
 ```
+
+### gtg Exit Codes → State Transitions
+
+| Exit Code | Status | Action |
+|-----------|--------|--------|
+| 0 | `READY` | → DONE (all clear!) |
+| 1 | `ACTION_REQUIRED` | → HANDLING_REVIEWS (actionable comments) |
+| 2 | `UNRESOLVED` | → HANDLING_REVIEWS (threads need resolution) |
+| 3 | `CI_FAILING` | → FIXING (CI failures) |
+| 4 | `ERROR` | → WAITING_FOR_USER (API error) |
 
 ### Evaluate State Transitions
 
-```text
-if ALL_CHECKS_PASS and UNRESOLVED == 0:
-  → DONE
-
-if FAILED_CHECKS > 0:
-  if is_simple_failure(failure):
-    → FIXING
-  else:
-    → WAITING_FOR_USER (present options)
-
-if NEW_COMMENTS:
-  → HANDLING_REVIEWS
+```bash
+case $GTG_EXIT in
+  0)  # READY - all clear
+      echo "✅ PR is good to go!"
+      # → DONE
+      ;;
+  1)  # ACTION_REQUIRED - actionable comments exist
+      echo "📝 Actionable comments need attention"
+      jq -r '.action_items[]' /tmp/gtg-status.json
+      # → HANDLING_REVIEWS
+      ;;
+  2)  # UNRESOLVED - threads need resolution
+      echo "💬 Unresolved threads: $UNRESOLVED"
+      # → HANDLING_REVIEWS
+      ;;
+  3)  # CI_FAILING - CI checks failing
+      echo "❌ CI failing:"
+      jq -r '.ci_status.checks[] | select(.status == "failure") | "  - \(.name)"' /tmp/gtg-status.json
+      # → FIXING (if simple) or WAITING_FOR_USER (if complex)
+      ;;
+  4)  # ERROR - couldn't fetch PR data
+      echo "⚠️ Error fetching PR data"
+      # → WAITING_FOR_USER
+      ;;
+esac
 ```
 
 ## Phase 3: Fixing Issues
@@ -493,19 +496,24 @@ To resume: `/project:pr-shepherd [number]`
 
 ## Mandatory Pre-Completion Check
 
-**⚠️ BLOCKING: You MUST run this script and show its output before declaring ANY PR ready:**
+**⚠️ BLOCKING: You MUST run `gtg check` and verify exit code 0 before declaring ANY PR ready:**
 
 ```bash
-bin/pr-comments-check.sh <PR_NUMBER>
+gtg check "$OWNER/$REPO" "$PR_NUMBER"
+echo "Exit code: $?"
 ```
 
-This script:
+### gtg Exit Code Meanings
 
-- Returns exit code 0 if all comments addressed
-- Returns exit code 1 if ANY unaddressed comments exist
-- Shows ✅/❌ status for each comment
+| Exit | Status | Meaning |
+|------|--------|---------|
+| 0 | READY | ✅ All clear - good to go! |
+| 1 | ACTION_REQUIRED | ❌ Actionable comments need fixes |
+| 2 | UNRESOLVED | ❌ Unresolved review threads |
+| 3 | CI_FAILING | ❌ CI checks failing |
+| 4 | ERROR | ❌ Error fetching data |
 
-**If the script shows ANY ❌, you are NOT done.** Address each unaddressed comment:
+**If exit code is NOT 0, you are NOT done.** Address each issue:
 
 For EACH top-level comment (where `in_reply_to_id` is null) without a reply:
 
