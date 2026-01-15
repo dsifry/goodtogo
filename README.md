@@ -1,18 +1,90 @@
 # GoodToMerge
 
-**Language-neutral Claude Code workflow system for PR excellence**
+**Deterministic PR readiness detection for AI coding agents**
 
-GoodToMerge is a comprehensive workflow system for [Claude Code](https://claude.ai/code) that helps you achieve PR excellence through sophisticated automation, task management, and code quality workflows.
+GoodToMerge helps AI agents (like Claude Code) know exactly when a PR is ready to merge. No guessing, no polling indefinitely, no missing comments.
 
-## What is GoodToMerge?
+## The Problem
 
-GoodToMerge provides:
+AI agents creating PRs face a common challenge: **How do I know when I'm actually done?**
 
-- **🤖 Sophisticated PR Workflows** - Auto-shepherd PRs from creation to merge
-- **📋 Task Management** - Beads-based issue tracking integrated with Claude Code
-- **🔍 Code Quality** - Automated reviews, testing, and validation
-- **🌍 Language-Neutral** - Works with any codebase (Python, Rust, TypeScript, Go, etc.)
-- **🎯 Simple & Concise** - Clear workflows without overwhelming complexity
+- CI is still running... is it done yet?
+- CodeRabbit left 12 comments... which ones need action?
+- A reviewer requested changes... did I address them all?
+- There are 3 unresolved threads... are they blocking?
+
+Without deterministic answers, agents either wait too long, miss comments, or keep asking "is it ready yet?"
+
+## The Solution
+
+GoodToMerge provides **deterministic PR state analysis**:
+
+- **✅ All CI checks passed** - No more polling, know exactly when CI completes
+- **✅ All automated reviews done** - CodeRabbit, SonarQube, etc. have finished
+- **✅ All actionable comments addressed** - Distinguishes "must fix" from "nice to have"
+- **✅ All threads resolved** - Tracks conversation state across reviewers
+- **✅ Ready to merge (or move on)** - Clear signal to proceed or wait for humans
+
+## Who Is This For?
+
+- **AI coding agents** (Claude Code, Cursor, Copilot Workspace) that create PRs
+- **Developers** who want clear PR readiness signals
+- **Teams** using automated code review tools (CodeRabbit, etc.)
+
+## For AI Agents
+
+If you're an AI agent setting up GoodToMerge for a project, here's what you need to do:
+
+### Quick Setup (Copy to Any Project)
+
+```bash
+# 1. Clone GoodToMerge
+git clone https://github.com/dsifry/goodtomerge.git /tmp/goodtomerge
+
+# 2. Copy the .claude directory to your target project
+cp -r /tmp/goodtomerge/.claude /path/to/your/project/
+
+# 3. Install Beads (git-backed task management)
+npm install -g @coderabbitai/beads
+
+# 4. Initialize Beads in your project
+cd /path/to/your/project
+bd init --prefix yourproject
+```
+
+### Key Commands Once Installed
+
+| Command | What It Does |
+|---------|--------------|
+| `/project:pr-shepherd <pr-number>` | Monitor PR until ready to merge |
+| `/project:handle-pr-comments <pr-number>` | Address all review comments systematically |
+| `/project:create-pr` | Create a comprehensive PR with proper description |
+| `/project:start-task` | Assess and plan a new task |
+
+### How PR Shepherd Works
+
+```
+1. Agent creates PR
+2. Run: /project:pr-shepherd 123
+3. PR Shepherd monitors:
+   - CI/CD status (polls every 60s)
+   - Automated review completion (CodeRabbit, etc.)
+   - Comment threads (resolved vs unresolved)
+   - Actionable vs non-actionable feedback
+4. Agent receives clear signal:
+   - "PR ready to merge" → proceed
+   - "Waiting for human review" → move to other work
+   - "Action required: 3 comments need fixes" → address them
+```
+
+### Configuration
+
+Edit `CLAUDE.md` in your project with your specific:
+- Build commands (`npm test`, `pytest`, `cargo test`, etc.)
+- Lint commands (`eslint`, `ruff`, `clippy`, etc.)
+- Any project-specific workflows
+
+The skills and commands are language-neutral and adapt to your tooling.
 
 ## Quick Start
 

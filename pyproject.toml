@@ -28,15 +28,19 @@ classifiers = [
 
 dependencies = [
     "click>=8.0.0",
-    "PyGithub>=2.0.0",
-    "GitPython>=3.1.0",
-    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+    "httpx>=0.25.0",
 ]
 
 [project.optional-dependencies]
+redis = [
+    "redis>=5.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "hypothesis>=6.0.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
@@ -60,6 +64,8 @@ target-version = ["py39"]
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.mypy]
@@ -73,3 +79,17 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+addopts = "--cov=goodtomerge --cov-report=term-missing --cov-fail-under=100"
+
+[tool.coverage.run]
+branch = true
+source = ["src/goodtomerge"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+fail_under = 100

@@ -1,0 +1,63 @@
+{
+  "pr_data": {
+    "number": 123,
+    "title": "Add new feature",
+    "state": "open",
+    "head": {
+      "sha": "abc123def456789012345678901234567890abcd",
+      "ref": "feature/new-feature",
+      "committed_at": "2024-01-15T10:30:00Z"
+    },
+    "base": {
+      "ref": "main"
+    },
+    "updated_at": "2024-01-15T10:30:00Z",
+    "user": {
+      "login": "developer"
+    }
+  },
+  "comments": [],
+  "reviews": [
+    {
+      "id": 1001,
+      "user": {
+        "login": "reviewer"
+      },
+      "body": "",
+      "state": "APPROVED",
+      "submitted_at": "2024-01-15T11:00:00Z"
+    }
+  ],
+  "threads": [],
+  "ci_status": {
+    "state": "success",
+    "statuses": [],
+    "check_runs": [
+      {
+        "name": "build",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/owner/repo/actions/runs/100"
+      },
+      {
+        "name": "test",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/owner/repo/actions/runs/101"
+      },
+      {
+        "name": "lint",
+        "status": "completed",
+        "conclusion": "success",
+        "html_url": "https://github.com/owner/repo/actions/runs/102"
+      }
+    ]
+  },
+  "expected_result": {
+    "status": "READY",
+    "needs_action": false,
+    "ci_passed": 3,
+    "ci_failed": 0,
+    "threads_unresolved": 0
+  }
+}
