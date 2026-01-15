@@ -20,23 +20,51 @@ GoodToMerge provides:
 
 - [Claude Code CLI](https://claude.ai/code) installed
 - Git repository
-- [Beads](https://github.com/coderabbitai/beads) for task management (optional but recommended)
+- Node.js (for Beads installation)
 
 ### Installation
 
+#### 1. Clone GoodToMerge
+
 ```bash
-# Clone this repository
 git clone https://github.com/dsifry/goodtomerge.git
 cd goodtomerge
-
-# Install Python dependencies (optional - for gtm CLI)
-pip install -e .
-
-# Or use uv for faster installation
-uv pip install -e .
 ```
 
-### Setup for Your Project
+#### 2. Install Superpowers (Required)
+
+GoodToMerge includes the [Superpowers](https://github.com/obra/superpowers) plugin for sophisticated development workflows.
+
+Superpowers is already included in `.claude/plugins/superpowers/` - no additional installation needed!
+
+The plugin provides:
+- **Test-Driven Development** - RED-GREEN-REFACTOR cycle
+- **Systematic Debugging** - Root cause analysis
+- **Brainstorming** - Design refinement before coding
+- **Code Review** - Automated quality gates
+- **Writing Plans** - Detailed implementation plans
+- **Subagent Development** - Fast iteration with quality gates
+
+See [Superpowers README](.claude/plugins/superpowers/README.md) for full documentation.
+
+#### 3. Install Beads (Recommended)
+
+[Beads](https://github.com/coderabbitai/beads) provides git-backed task management:
+
+```bash
+# Using pnpm (recommended)
+pnpm add -g @coderabbitai/beads
+
+# Using npm
+npm install -g @coderabbitai/beads
+
+# Verify installation
+bd --version
+```
+
+See [Beads Setup Guide](docs/BEADS_SETUP.md) for complete installation and configuration.
+
+#### 4. Setup for Your Project
 
 Copy the `.claude/` directory to your project:
 
@@ -44,11 +72,29 @@ Copy the `.claude/` directory to your project:
 # In your project directory
 cp -r /path/to/goodtomerge/.claude .
 
-# Initialize beads (optional)
+# Initialize beads
 bd init
+
+# Configure beads sync branch
+bd config set sync.branch beads-sync
 ```
 
-That's it! Claude Code will now use GoodToMerge workflows.
+#### 5. Optional: Install Python CLI
+
+GoodToMerge includes optional Python utilities:
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Or use uv for faster installation
+uv pip install -e .
+
+# Verify
+gtm --version
+```
+
+That's it! Claude Code will now use GoodToMerge workflows with Superpowers skills and Beads task management.
 
 ## Core Features
 
@@ -143,12 +189,17 @@ See [Commands Directory](.claude/commands/) for all available commands.
 ```
 goodtomerge/
 ├── .claude/
-│   ├── commands/              # Slash commands for Claude Code
-│   ├── guides/               # Git, workflow, session guides
-│   └── plugins/goodtomerge/
-│       └── skills/           # Auto-activating skills
+│   ├── commands/              # Slash commands for Claude Code (43 commands)
+│   ├── guides/               # Git, workflow, session guides (9 guides)
+│   └── plugins/
+│       ├── goodtomerge/      # GoodToMerge-specific skills
+│       │   └── skills/       # pr-shepherd, handling-pr-comments, beads, etc.
+│       └── superpowers/      # Superpowers plugin (included)
+│           └── skills/       # TDD, debugging, brainstorming, etc. (20 skills)
 ├── beads/
 │   └── config.yaml.example   # Beads task management config
+├── docs/
+│   └── BEADS_SETUP.md        # Comprehensive Beads installation guide
 ├── src/goodtomerge/          # Python utilities (optional)
 │   ├── cli.py               # CLI tools
 │   └── __init__.py
@@ -237,8 +288,15 @@ Created by [David Sifry](https://github.com/dsifry) with ❤️ for the Claude C
 
 Built on:
 - [Claude Code](https://claude.ai/code) by Anthropic
-- [Beads](https://github.com/coderabbitai/beads) for task management
+- [Superpowers](https://github.com/obra/superpowers) by Jesse Vincent - Sophisticated development workflows
+- [Beads](https://github.com/coderabbitai/beads) by CodeRabbit - Git-backed task management
 - Inspired by real-world PR workflows at scale
+
+### Special Thanks
+
+- **Jesse Vincent** ([obra](https://github.com/obra)) for the incredible Superpowers plugin
+- **CodeRabbit team** for Beads task management system
+- **Anthropic** for Claude Code and Claude AI
 
 ## Support
 
