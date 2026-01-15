@@ -9,13 +9,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from goodtogo.container import Container
 from goodtogo.core.interfaces import GitHubPort
-
 
 # Path to fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -386,18 +384,22 @@ def pr_with_unresolved_threads(
         The configured mock GitHub adapter.
     """
     mock_github.set_pr_data(make_pr_data(number=123))
-    mock_github.set_comments([
-        make_comment(
-            comment_id=1,
-            author="reviewer",
-            body="Please fix this",
-            in_reply_to_id=None,
-        )
-    ])
+    mock_github.set_comments(
+        [
+            make_comment(
+                comment_id=1,
+                author="reviewer",
+                body="Please fix this",
+                in_reply_to_id=None,
+            )
+        ]
+    )
     mock_github.set_reviews([])
-    mock_github.set_threads([
-        make_thread(thread_id="thread-1", is_resolved=False),
-    ])
+    mock_github.set_threads(
+        [
+            make_thread(thread_id="thread-1", is_resolved=False),
+        ]
+    )
     mock_github.set_ci_status(
         make_ci_status(
             state="success",
@@ -432,11 +434,12 @@ def pr_with_actionable_comments(
         The configured mock GitHub adapter.
     """
     mock_github.set_pr_data(make_pr_data(number=123))
-    mock_github.set_comments([
-        make_comment(
-            comment_id=1,
-            author="coderabbitai[bot]",
-            body="""_⚠️ Potential issue_ | _🔴 Critical_
+    mock_github.set_comments(
+        [
+            make_comment(
+                comment_id=1,
+                author="coderabbitai[bot]",
+                body="""_⚠️ Potential issue_ | _🔴 Critical_
 
 Missing null check in handler function.
 
@@ -451,10 +454,11 @@ if input is None:
 ```
 </details>
 """,
-            path="src/handler.py",
-            line=42,
-        )
-    ])
+                path="src/handler.py",
+                line=42,
+            )
+        ]
+    )
     mock_github.set_reviews([])
     mock_github.set_threads([])
     mock_github.set_ci_status(

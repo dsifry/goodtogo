@@ -15,8 +15,6 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-import pytest
-
 from goodtogo.adapters.cache_memory import CacheEntry, InMemoryCacheAdapter
 from goodtogo.core.models import CacheStats
 

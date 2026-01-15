@@ -22,43 +22,31 @@ class TestClaudeCodeParserCanParse:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
-    def test_can_parse_by_author_claude_code_bot(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_author_claude_code_bot(self, parser: ClaudeCodeParser) -> None:
         """Test detection by claude-code[bot] author."""
         assert parser.can_parse("claude-code[bot]", "") is True
 
-    def test_can_parse_by_author_anthropic_claude_bot(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_author_anthropic_claude_bot(self, parser: ClaudeCodeParser) -> None:
         """Test detection by anthropic-claude[bot] author."""
         assert parser.can_parse("anthropic-claude[bot]", "") is True
 
-    def test_can_parse_by_author_case_insensitive(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_author_case_insensitive(self, parser: ClaudeCodeParser) -> None:
         """Test that author matching is case-insensitive."""
         assert parser.can_parse("CLAUDE-CODE[BOT]", "") is True
         assert parser.can_parse("Claude-Code[bot]", "") is True
         assert parser.can_parse("ANTHROPIC-CLAUDE[bot]", "") is True
 
-    def test_can_parse_by_body_generated_signature(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_body_generated_signature(self, parser: ClaudeCodeParser) -> None:
         """Test detection by 'Generated with Claude Code' in body."""
         body = "Changes made.\n\nGenerated with Claude Code"
         assert parser.can_parse("other-user", body) is True
 
-    def test_can_parse_by_body_claude_code_name(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_body_claude_code_name(self, parser: ClaudeCodeParser) -> None:
         """Test detection by 'Claude Code' in body."""
         body = "This review was performed by Claude Code."
         assert parser.can_parse("other-user", body) is True
 
-    def test_can_parse_by_body_case_insensitive(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_can_parse_by_body_case_insensitive(self, parser: ClaudeCodeParser) -> None:
         """Test that body signature detection is case-insensitive."""
         assert parser.can_parse("other", "GENERATED WITH CLAUDE CODE") is True
         assert parser.can_parse("other", "claude code") is True
@@ -103,9 +91,7 @@ class TestClaudeCodeParserActionablePatterns:
         assert priority == Priority.MINOR
         assert requires_investigation is False
 
-    def test_parse_must_keyword_case_insensitive(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_parse_must_keyword_case_insensitive(self, parser: ClaudeCodeParser) -> None:
         """Test 'must' keyword is case-insensitive."""
         body = "This MUST be fixed before merge."
         comment = {"body": body}
@@ -249,9 +235,7 @@ class TestClaudeCodeParserSuggestionPatterns:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
-    def test_parse_consider_with_error_is_actionable(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_parse_consider_with_error_is_actionable(self, parser: ClaudeCodeParser) -> None:
         """Test 'consider' is overridden by 'error' (actionable takes precedence)."""
         body = "Consider adding error handling here."
         comment = {"body": body}
@@ -365,9 +349,7 @@ class TestClaudeCodeParserEdgeCases:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
-    def test_parse_multiple_actionable_keywords(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_parse_multiple_actionable_keywords(self, parser: ClaudeCodeParser) -> None:
         """Test body with multiple actionable keywords."""
         body = "There's an error here and a bug there."
         comment = {"body": body}
@@ -392,9 +374,7 @@ class TestClaudeCodeParserEdgeCases:
         # However, "looks good" matches approval pattern -> NON_ACTIONABLE
         assert classification == CommentClassification.NON_ACTIONABLE
 
-    def test_parse_code_block_with_actionable_keyword(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_parse_code_block_with_actionable_keyword(self, parser: ClaudeCodeParser) -> None:
         """Test body with actual actionable keyword in code block."""
         body = """
         ```python
@@ -409,9 +389,7 @@ class TestClaudeCodeParserEdgeCases:
         # "must" as standalone word in comment triggers ACTIONABLE
         assert classification == CommentClassification.ACTIONABLE
 
-    def test_parse_long_body_with_late_keyword(
-        self, parser: ClaudeCodeParser
-    ) -> None:
+    def test_parse_long_body_with_late_keyword(self, parser: ClaudeCodeParser) -> None:
         """Test long body where keyword appears late."""
         body = """
         This is a comprehensive review of the changes.

@@ -38,9 +38,7 @@ class TestCodeRabbitParserCanParse:
         body = "<!-- This is an auto-generated comment by coderabbit.ai -->"
         assert parser.can_parse("other-user", body) is True
 
-    def test_can_parse_by_body_signature_case_insensitive(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_can_parse_by_body_signature_case_insensitive(self, parser: CodeRabbitParser) -> None:
         """Test that body signature detection is case-insensitive."""
         body = "<!-- This is an auto-generated comment by CodeRabbit.AI -->"
         assert parser.can_parse("other-user", body) is True
@@ -85,9 +83,7 @@ class TestCodeRabbitParserCritical:
         assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
-    def test_parse_critical_severity_case_insensitive(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_parse_critical_severity_case_insensitive(self, parser: CodeRabbitParser) -> None:
         """Test Critical severity with different case."""
         body = "_\u26a0\ufe0f potential issue_ | _\U0001f534 critical_"
         comment = {"body": body}
@@ -117,9 +113,7 @@ class TestCodeRabbitParserMajor:
         assert priority == Priority.MAJOR
         assert requires_investigation is False
 
-    def test_parse_major_severity_case_insensitive(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_parse_major_severity_case_insensitive(self, parser: CodeRabbitParser) -> None:
         """Test Major severity with different case."""
         body = "_\u26a0\ufe0f POTENTIAL ISSUE_ | _\U0001f7e0 MAJOR_"
         comment = {"body": body}
@@ -206,12 +200,13 @@ class TestCodeRabbitParserFingerprint:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is False
 
-    def test_fingerprint_takes_precedence_over_severity(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_fingerprint_takes_precedence_over_severity(self, parser: CodeRabbitParser) -> None:
         """Test that fingerprinting comments override severity patterns."""
         # A comment that has both fingerprint and critical should be NON_ACTIONABLE
-        body = "<!-- fingerprinting: metadata -->_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_"
+        body = (
+            "<!-- fingerprinting: metadata -->"
+            "_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_"
+        )
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
 
@@ -237,9 +232,7 @@ class TestCodeRabbitParserAddressed:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is False
 
-    def test_addressed_takes_precedence_over_severity(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_addressed_takes_precedence_over_severity(self, parser: CodeRabbitParser) -> None:
         """Test that Addressed marker overrides severity patterns."""
         body = "\u2705 Addressed\n_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_"
         comment = {"body": body}
@@ -266,9 +259,7 @@ class TestCodeRabbitParserOutsideDiffRange:
         assert priority == Priority.MINOR
         assert requires_investigation is False
 
-    def test_outside_diff_range_case_insensitive(
-        self, parser: CodeRabbitParser
-    ) -> None:
+    def test_outside_diff_range_case_insensitive(self, parser: CodeRabbitParser) -> None:
         """Test Outside diff range with different case."""
         body = "OUTSIDE DIFF RANGE: some comment"
         comment = {"body": body}
@@ -348,10 +339,7 @@ class TestCodeRabbitParserPrecedence:
 
     def test_severity_over_trivial(self, parser: CodeRabbitParser) -> None:
         """Test severity patterns take precedence over trivial."""
-        body = (
-            "_\u26a0\ufe0f Potential issue_ | _\U0001f7e1 Minor_\n"
-            "_\U0001f535 Trivial_"
-        )
+        body = "_\u26a0\ufe0f Potential issue_ | _\U0001f7e1 Minor_\n" "_\U0001f535 Trivial_"
         comment = {"body": body}
         classification, priority, _ = parser.parse(comment)
 

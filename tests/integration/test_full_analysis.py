@@ -12,9 +12,6 @@ to final results, using mocked GitHub adapters to verify:
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -22,15 +19,13 @@ from goodtogo.container import Container
 from goodtogo.core.analyzer import PRAnalyzer
 from goodtogo.core.models import (
     CommentClassification,
-    PRAnalysisResult,
-    PRStatus,
     Priority,
+    PRStatus,
     ReviewerType,
 )
 
 # Import test fixtures from conftest
 from tests.conftest import MockableGitHubAdapter
-
 
 # ============================================================================
 # Test: Complete Analysis Flow Returning READY Status
@@ -91,10 +86,12 @@ class TestReadyToMergeFlow:
         # No standalone comments - resolved threads don't require separate comment checking
         mock_github.set_comments([])
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=True),
-            make_thread(thread_id="thread-2", is_resolved=True),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=True),
+                make_thread(thread_id="thread-2", is_resolved=True),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -171,11 +168,12 @@ class TestActionableCommentsFlow:
         """
         # Setup with CodeRabbit-style critical comment using actual emoji pattern
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="""_⚠️ Potential issue_ | _🔴 Critical_
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="""_⚠️ Potential issue_ | _🔴 Critical_
 
 Security vulnerability detected: SQL injection risk
 
@@ -190,10 +188,11 @@ query = "SELECT * FROM users WHERE id = %s"
 cursor.execute(query, (user_id,))
 ```
 """,
-                path="src/db.py",
-                line=42,
-            )
-        ])
+                    path="src/db.py",
+                    line=42,
+                )
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -233,32 +232,40 @@ cursor.execute(query, (user_id,))
         """
         # Setup with multiple CodeRabbit comments at different priorities
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            # Minor issue first (in list order)
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="_⚠️ Potential issue_ | _🟡 Minor_\n\nConsider using a more descriptive variable name.",
-                path="src/utils.py",
-                line=10,
-            ),
-            # Critical issue second (in list order)
-            make_comment(
-                comment_id=2,
-                author="coderabbitai[bot]",
-                body="_⚠️ Potential issue_ | _🔴 Critical_\n\nMemory leak detected - resources not released.",
-                path="src/handler.py",
-                line=50,
-            ),
-            # Major issue third (in list order)
-            make_comment(
-                comment_id=3,
-                author="coderabbitai[bot]",
-                body="_⚠️ Potential issue_ | _🟠 Major_\n\nError handling is incomplete.",
-                path="src/api.py",
-                line=30,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                # Minor issue first (in list order)
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body=(
+                        "_⚠️ Potential issue_ | _🟡 Minor_\n\n"
+                        "Consider using a more descriptive variable name."
+                    ),
+                    path="src/utils.py",
+                    line=10,
+                ),
+                # Critical issue second (in list order)
+                make_comment(
+                    comment_id=2,
+                    author="coderabbitai[bot]",
+                    body=(
+                        "_⚠️ Potential issue_ | _🔴 Critical_\n\n"
+                        "Memory leak detected - resources not released."
+                    ),
+                    path="src/handler.py",
+                    line=50,
+                ),
+                # Major issue third (in list order)
+                make_comment(
+                    comment_id=3,
+                    author="coderabbitai[bot]",
+                    body="_⚠️ Potential issue_ | _🟠 Major_\n\nError handling is incomplete.",
+                    path="src/api.py",
+                    line=30,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -292,15 +299,17 @@ cursor.execute(query, (user_id,))
         """Action items should be generated for actionable comments."""
         # Setup - use correct CodeRabbit emoji pattern
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="_⚠️ Potential issue_ | _🔴 Critical_\n\nMissing error handling",
-                path="src/main.py",
-                line=10,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="_⚠️ Potential issue_ | _🔴 Critical_\n\nMissing error handling",
+                    path="src/main.py",
+                    line=10,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -342,9 +351,11 @@ class TestUnresolvedThreadsFlow:
         mock_github.set_pr_data(make_pr_data(number=123))
         mock_github.set_comments([])
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=False),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=False),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -375,13 +386,15 @@ class TestUnresolvedThreadsFlow:
         mock_github.set_pr_data(make_pr_data(number=123))
         mock_github.set_comments([])
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=False),
-            make_thread(thread_id="thread-2", is_resolved=True),
-            make_thread(thread_id="thread-3", is_resolved=False),
-            make_thread(thread_id="thread-4", is_resolved=True),
-            make_thread(thread_id="thread-5", is_resolved=True, is_outdated=True),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=False),
+                make_thread(thread_id="thread-2", is_resolved=True),
+                make_thread(thread_id="thread-3", is_resolved=False),
+                make_thread(thread_id="thread-4", is_resolved=True),
+                make_thread(thread_id="thread-5", is_resolved=True, is_outdated=True),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -414,10 +427,12 @@ class TestUnresolvedThreadsFlow:
         mock_github.set_pr_data(make_pr_data(number=123))
         mock_github.set_comments([])
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=False),
-            make_thread(thread_id="thread-2", is_resolved=False),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=False),
+                make_thread(thread_id="thread-2", is_resolved=False),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -615,7 +630,6 @@ class TestCacheInvalidation:
         assert result1.latest_commit_sha == "abc123"
         assert result1.cache_stats is not None
         initial_hits = result1.cache_stats.hits
-        initial_misses = result1.cache_stats.misses
 
         # Second analysis - should have cache hits
         result2 = analyzer.analyze("owner", "repo", 123)
@@ -650,7 +664,6 @@ class TestCacheInvalidation:
         # First analysis - should have misses
         result1 = analyzer.analyze("owner", "repo", 123)
         assert result1.cache_stats is not None
-        initial_misses = result1.cache_stats.misses
 
         # Second analysis - should have hits
         result2 = analyzer.analyze("owner", "repo", 123)
@@ -680,9 +693,11 @@ class TestStatusPriority:
         mock_github.set_pr_data(make_pr_data(number=123))
         mock_github.set_comments([])
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=False),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=False),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="failure",
@@ -710,17 +725,21 @@ class TestStatusPriority:
         """UNRESOLVED_THREADS should take priority over ACTION_REQUIRED."""
         # Setup - both unresolved threads and actionable comments
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="**[critical]** Missing null check",
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="**[critical]** Missing null check",
+                ),
+            ]
+        )
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            make_thread(thread_id="thread-1", is_resolved=False),
-        ])
+        mock_github.set_threads(
+            [
+                make_thread(thread_id="thread-1", is_resolved=False),
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -756,13 +775,15 @@ class TestReviewerIdentification:
         """Comments from coderabbitai[bot] should be identified as CodeRabbit."""
         # Setup
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="**[minor]** Consider renaming this variable.",
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="**[minor]** Consider renaming this variable.",
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -792,13 +813,15 @@ class TestReviewerIdentification:
         """Comments from regular users should be identified as HUMAN."""
         # Setup
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="john-reviewer",
-                body="Please add more tests for edge cases.",
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="john-reviewer",
+                    body="Please add more tests for edge cases.",
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -934,11 +957,13 @@ class TestResultModelCorrectness:
     ):
         """Result should contain correct PR metadata."""
         # Setup
-        mock_github.set_pr_data(make_pr_data(
-            number=456,
-            head_sha="sha789xyz",
-            updated_at="2024-06-15T14:30:00Z",
-        ))
+        mock_github.set_pr_data(
+            make_pr_data(
+                number=456,
+                head_sha="sha789xyz",
+                updated_at="2024-06-15T14:30:00Z",
+            )
+        )
         mock_github.set_comments([])
         mock_github.set_reviews([])
         mock_github.set_threads([])
@@ -1014,9 +1039,7 @@ class TestErrorRedaction:
 
         # Setup - make get_pr raise an exception with sensitive data
         def raise_with_token(*args, **kwargs):
-            raise RuntimeError(
-                "GitHub API error: Invalid token ghp_secret123456 for auth"
-            )
+            raise RuntimeError("GitHub API error: Invalid token ghp_secret123456 for auth")
 
         mock_github.get_pr = raise_with_token
 
@@ -1072,17 +1095,19 @@ class TestReviewBodyProcessing:
         # Setup - reviews with empty bodies should not create comments
         mock_github.set_pr_data(make_pr_data(number=123))
         mock_github.set_comments([])
-        mock_github.set_reviews([
-            make_review(review_id=1, author="reviewer1", body="", state="APPROVED"),
-            make_review(review_id=2, author="reviewer2", body="   ", state="APPROVED"),
-            make_review(review_id=3, author="reviewer3", body=None, state="APPROVED"),
-            make_review(
-                review_id=4,
-                author="reviewer4",
-                body="This is a real comment",
-                state="CHANGES_REQUESTED",
-            ),
-        ])
+        mock_github.set_reviews(
+            [
+                make_review(review_id=1, author="reviewer1", body="", state="APPROVED"),
+                make_review(review_id=2, author="reviewer2", body="   ", state="APPROVED"),
+                make_review(review_id=3, author="reviewer3", body=None, state="APPROVED"),
+                make_review(
+                    review_id=4,
+                    author="reviewer4",
+                    body="This is a real comment",
+                    state="CHANGES_REQUESTED",
+                ),
+            ]
+        )
         mock_github.set_threads([])
         mock_github.set_ci_status(
             make_ci_status(
@@ -1124,22 +1149,24 @@ class TestCIStatusMapping:
         mock_github.set_comments([])
         mock_github.set_reviews([])
         mock_github.set_threads([])
-        mock_github.set_ci_status({
-            "state": "failure",
-            "statuses": [
-                {
-                    "context": "continuous-integration/travis-ci",
-                    "state": "success",
-                    "target_url": "https://travis-ci.com/build/123",
-                },
-                {
-                    "context": "codeclimate",
-                    "state": "failure",
-                    "target_url": "https://codeclimate.com/report/456",
-                },
-            ],
-            "check_runs": [],
-        })
+        mock_github.set_ci_status(
+            {
+                "state": "failure",
+                "statuses": [
+                    {
+                        "context": "continuous-integration/travis-ci",
+                        "state": "success",
+                        "target_url": "https://travis-ci.com/build/123",
+                    },
+                    {
+                        "context": "codeclimate",
+                        "state": "failure",
+                        "target_url": "https://codeclimate.com/report/456",
+                    },
+                ],
+                "check_runs": [],
+            }
+        )
 
         # Execute
         analyzer = PRAnalyzer(test_container)
@@ -1166,18 +1193,20 @@ class TestCIStatusMapping:
         mock_github.set_comments([])
         mock_github.set_reviews([])
         mock_github.set_threads([])
-        mock_github.set_ci_status({
-            "state": "success",
-            "statuses": [],
-            "check_runs": [
-                {
-                    "name": "weird-check",
-                    "status": "waiting",  # Neither completed, queued, nor in_progress
-                    "conclusion": None,
-                    "html_url": "https://github.com/actions/123",
-                },
-            ],
-        })
+        mock_github.set_ci_status(
+            {
+                "state": "success",
+                "statuses": [],
+                "check_runs": [
+                    {
+                        "name": "weird-check",
+                        "status": "waiting",  # Neither completed, queued, nor in_progress
+                        "conclusion": None,
+                        "html_url": "https://github.com/actions/123",
+                    },
+                ],
+            }
+        )
 
         # Execute
         analyzer = PRAnalyzer(test_container)
@@ -1218,19 +1247,21 @@ class TestActionItemsGeneration:
 
         # CodeRabbit can produce TRIVIAL priority with nitpick comments
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="""_Nitpick (non-blocking)_
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="""_Nitpick (non-blocking)_
 
 Consider adding a trailing newline to the file.
 
 This is a very minor style suggestion.""",
-                path="src/main.py",
-                line=100,
-            ),
-        ])
+                    path="src/main.py",
+                    line=100,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1274,15 +1305,17 @@ class TestAmbiguousCommentsHandling:
         """
         # Setup
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="human-reviewer",
-                body="This is an interesting approach to the problem.",
-                path="src/algorithm.py",
-                line=50,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="human-reviewer",
+                    body="This is an interesting approach to the problem.",
+                    path="src/algorithm.py",
+                    line=50,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1313,22 +1346,24 @@ class TestAmbiguousCommentsHandling:
         """Ambiguous comments should generate appropriate action items."""
         # Setup - multiple ambiguous comments
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="reviewer1",
-                body="Hmm, what about edge cases?",
-                path="src/handler.py",
-                line=10,
-            ),
-            make_comment(
-                comment_id=2,
-                author="reviewer2",
-                body="Have you considered the performance implications?",
-                path="src/processor.py",
-                line=20,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="reviewer1",
+                    body="Hmm, what about edge cases?",
+                    path="src/handler.py",
+                    line=10,
+                ),
+                make_comment(
+                    comment_id=2,
+                    author="reviewer2",
+                    body="Have you considered the performance implications?",
+                    path="src/processor.py",
+                    line=20,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1371,19 +1406,21 @@ class TestPRDataFallbacks:
         This tests line 131-132 in analyzer.py where it falls back to updated_at.
         """
         # Setup - PR data without committed_at in head
-        mock_github.set_pr_data({
-            "number": 123,
-            "title": "Test PR",
-            "state": "open",
-            "head": {
-                "sha": "abc123",
-                "ref": "feature-branch",
-                # No committed_at field
-            },
-            "base": {"ref": "main"},
-            "updated_at": "2024-01-15T12:00:00Z",
-            "user": {"login": "author"},
-        })
+        mock_github.set_pr_data(
+            {
+                "number": 123,
+                "title": "Test PR",
+                "state": "open",
+                "head": {
+                    "sha": "abc123",
+                    "ref": "feature-branch",
+                    # No committed_at field
+                },
+                "base": {"ref": "main"},
+                "updated_at": "2024-01-15T12:00:00Z",
+                "user": {"login": "author"},
+            }
+        )
         mock_github.set_comments([])
         mock_github.set_reviews([])
         mock_github.set_threads([])
@@ -1501,15 +1538,17 @@ class TestParserFallbackLogic:
 
         # Setup mock data with a CodeRabbit comment (which has no parser)
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",  # CodeRabbit author
-                body="This comment should fall back to generic parser",
-                path="src/main.py",
-                line=10,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",  # CodeRabbit author
+                    body="This comment should fall back to generic parser",
+                    path="src/main.py",
+                    line=10,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1555,15 +1594,17 @@ class TestParserFallbackLogic:
 
         # Setup mock data with a human comment (HUMAN parser not available)
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="human-reviewer",  # Human author, but no HUMAN parser
-                body="A human comment without matching parser",
-                path="src/main.py",
-                line=10,
-            ),
-        ])
+        mock_github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="human-reviewer",  # Human author, but no HUMAN parser
+                    body="A human comment without matching parser",
+                    path="src/main.py",
+                    line=10,
+                ),
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1603,27 +1644,31 @@ class TestThreadIdConversion:
         """
         # Setup - comment with numeric in_reply_to_id
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            {
-                "id": 1,
-                "user": {"login": "reviewer"},
-                "body": "I agree with the previous comment",
-                "path": "src/main.py",
-                "line": 20,
-                "in_reply_to_id": 12345,  # Numeric ID that should be converted
-                "created_at": "2024-01-15T10:00:00Z",
-            },
-        ])
+        mock_github.set_comments(
+            [
+                {
+                    "id": 1,
+                    "user": {"login": "reviewer"},
+                    "body": "I agree with the previous comment",
+                    "path": "src/main.py",
+                    "line": 20,
+                    "in_reply_to_id": 12345,  # Numeric ID that should be converted
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ]
+        )
         mock_github.set_reviews([])
-        mock_github.set_threads([
-            {
-                "id": "12345",  # String ID to match
-                "is_resolved": False,
-                "is_outdated": False,
-                "path": "src/main.py",
-                "line": 20,
-            },
-        ])
+        mock_github.set_threads(
+            [
+                {
+                    "id": "12345",  # String ID to match
+                    "is_resolved": False,
+                    "is_outdated": False,
+                    "path": "src/main.py",
+                    "line": 20,
+                },
+            ]
+        )
         mock_github.set_ci_status(
             make_ci_status(
                 state="success",
@@ -1672,9 +1717,7 @@ class TestActionItemsOtherPriority:
             def can_parse(self, author: str, body: str) -> bool:
                 return True
 
-            def parse(
-                self, comment_data: dict
-            ) -> tuple[CommentClassification, Priority, bool]:
+            def parse(self, comment_data: dict) -> tuple[CommentClassification, Priority, bool]:
                 return (CommentClassification.ACTIONABLE, Priority.TRIVIAL, False)
 
         # Create container with the trivial parser for all types
@@ -1696,24 +1739,26 @@ class TestActionItemsOtherPriority:
 
         # Setup mock data
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            {
-                "id": 1,
-                "user": {"login": "reviewer1"},
-                "body": "Trivial comment 1",
-                "path": "src/main.py",
-                "line": 10,
-                "created_at": "2024-01-15T10:00:00Z",
-            },
-            {
-                "id": 2,
-                "user": {"login": "reviewer2"},
-                "body": "Trivial comment 2",
-                "path": "src/main.py",
-                "line": 20,
-                "created_at": "2024-01-15T10:00:00Z",
-            },
-        ])
+        mock_github.set_comments(
+            [
+                {
+                    "id": 1,
+                    "user": {"login": "reviewer1"},
+                    "body": "Trivial comment 1",
+                    "path": "src/main.py",
+                    "line": 10,
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+                {
+                    "id": 2,
+                    "user": {"login": "reviewer2"},
+                    "body": "Trivial comment 2",
+                    "path": "src/main.py",
+                    "line": 20,
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(
@@ -1761,9 +1806,7 @@ class TestActionItemsOtherPriority:
             def can_parse(self, author: str, body: str) -> bool:
                 return True
 
-            def parse(
-                self, comment_data: dict
-            ) -> tuple[CommentClassification, Priority, bool]:
+            def parse(self, comment_data: dict) -> tuple[CommentClassification, Priority, bool]:
                 return (CommentClassification.ACTIONABLE, Priority.UNKNOWN, False)
 
         parser = UnknownPriorityParser()
@@ -1777,16 +1820,18 @@ class TestActionItemsOtherPriority:
 
         # Setup mock data with single comment
         mock_github.set_pr_data(make_pr_data(number=123))
-        mock_github.set_comments([
-            {
-                "id": 1,
-                "user": {"login": "reviewer"},
-                "body": "Single comment with unknown priority",
-                "path": "src/main.py",
-                "line": 10,
-                "created_at": "2024-01-15T10:00:00Z",
-            },
-        ])
+        mock_github.set_comments(
+            [
+                {
+                    "id": 1,
+                    "user": {"login": "reviewer"},
+                    "body": "Single comment with unknown priority",
+                    "path": "src/main.py",
+                    "line": 10,
+                    "created_at": "2024-01-15T10:00:00Z",
+                },
+            ]
+        )
         mock_github.set_reviews([])
         mock_github.set_threads([])
         mock_github.set_ci_status(

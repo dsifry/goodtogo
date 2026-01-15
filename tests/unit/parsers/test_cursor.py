@@ -20,43 +20,31 @@ class TestCursorBugbotParserCanParse:
         """Create a CursorBugbotParser instance."""
         return CursorBugbotParser()
 
-    def test_can_parse_by_author_cursor_bot(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_by_author_cursor_bot(self, parser: CursorBugbotParser) -> None:
         """Test detection by cursor[bot] author."""
         assert parser.can_parse("cursor[bot]", "") is True
 
-    def test_can_parse_by_author_cursor_dash_bot(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_by_author_cursor_dash_bot(self, parser: CursorBugbotParser) -> None:
         """Test detection by cursor-bot author."""
         assert parser.can_parse("cursor-bot", "") is True
 
-    def test_can_parse_by_author_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_by_author_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test that author matching is case-insensitive."""
         assert parser.can_parse("CURSOR[BOT]", "") is True
         assert parser.can_parse("Cursor[bot]", "") is True
         assert parser.can_parse("CURSOR-BOT", "") is True
 
-    def test_can_parse_by_body_cursor_link(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_by_body_cursor_link(self, parser: CursorBugbotParser) -> None:
         """Test detection by cursor.com link in body."""
         body = "Review powered by https://cursor.com"
         assert parser.can_parse("other-user", body) is True
 
-    def test_can_parse_by_body_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_by_body_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test that body signature detection is case-insensitive."""
         assert parser.can_parse("other", "Check out CURSOR.COM") is True
         assert parser.can_parse("other", "Visit Cursor.Com for more") is True
 
-    def test_can_parse_non_matching_author(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_can_parse_non_matching_author(self, parser: CursorBugbotParser) -> None:
         """Test that non-matching authors are rejected."""
         assert parser.can_parse("random-user", "") is False
         assert parser.can_parse("github-bot", "") is False
@@ -96,9 +84,7 @@ class TestCursorBugbotParserCriticalSeverity:
         assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
-    def test_parse_critical_severity_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_parse_critical_severity_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test Critical Severity is case-insensitive."""
         body = "CRITICAL SEVERITY: Security vulnerability detected."
         comment = {"body": body}
@@ -107,9 +93,7 @@ class TestCursorBugbotParserCriticalSeverity:
         assert classification == CommentClassification.ACTIONABLE
         assert priority == Priority.CRITICAL
 
-    def test_parse_critical_severity_with_whitespace(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_parse_critical_severity_with_whitespace(self, parser: CursorBugbotParser) -> None:
         """Test Critical Severity with extra whitespace."""
         body = "Critical   Severity: Issue found."
         comment = {"body": body}
@@ -137,9 +121,7 @@ class TestCursorBugbotParserHighSeverity:
         assert priority == Priority.MAJOR
         assert requires_investigation is False
 
-    def test_parse_high_severity_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_parse_high_severity_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test High Severity is case-insensitive."""
         body = "HIGH SEVERITY: Data validation missing."
         comment = {"body": body}
@@ -167,9 +149,7 @@ class TestCursorBugbotParserMediumSeverity:
         assert priority == Priority.MINOR
         assert requires_investigation is False
 
-    def test_parse_medium_severity_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_parse_medium_severity_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test Medium Severity is case-insensitive."""
         body = "MEDIUM SEVERITY: Consider refactoring."
         comment = {"body": body}
@@ -197,9 +177,7 @@ class TestCursorBugbotParserLowSeverity:
         assert priority == Priority.TRIVIAL
         assert requires_investigation is False
 
-    def test_parse_low_severity_case_insensitive(
-        self, parser: CursorBugbotParser
-    ) -> None:
+    def test_parse_low_severity_case_insensitive(self, parser: CursorBugbotParser) -> None:
         """Test Low Severity is case-insensitive."""
         body = "LOW SEVERITY: Minor style improvement."
         comment = {"body": body}

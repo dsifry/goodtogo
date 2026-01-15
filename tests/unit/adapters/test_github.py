@@ -14,7 +14,6 @@ Coverage target: 100% coverage on github.py
 from __future__ import annotations
 
 import time
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -378,15 +377,7 @@ class TestGitHubAdapterGetPRThreads:
         adapter = GitHubAdapter(token="ghp_test123")
 
         graphql_response = {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": []
-                        }
-                    }
-                }
-            }
+            "data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}
         }
 
         mock_response = MagicMock(spec=httpx.Response)
@@ -732,9 +723,7 @@ class TestGitHubAdapterGetNextPageUrl:
         adapter = GitHubAdapter(token="ghp_test123")
 
         mock_response = MagicMock(spec=httpx.Response)
-        mock_response.headers = {
-            "Link": 'malformed; rel="next"'  # Missing angle brackets
-        }
+        mock_response.headers = {"Link": 'malformed; rel="next"'}  # Missing angle brackets
 
         result = adapter._get_next_page_url(mock_response)
 

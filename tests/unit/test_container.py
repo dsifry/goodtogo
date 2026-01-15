@@ -20,7 +20,6 @@ from goodtogo.container import (
 )
 from goodtogo.core.models import ReviewerType
 
-
 # ============================================================================
 # Test: MockGitHubAdapter String Representations
 # ============================================================================
@@ -125,9 +124,7 @@ class TestContainerCreateDefault:
                 "sys.modules",
                 {"goodtogo.adapters.cache_redis": MagicMock()},
             ):
-                with patch(
-                    "goodtogo.container._create_cache"
-                ) as mock_create_cache:
+                with patch("goodtogo.container._create_cache") as mock_create_cache:
                     mock_create_cache.return_value = mock_redis_adapter
 
                     container = Container.create_default(
@@ -215,7 +212,6 @@ class TestCreateCacheFunction:
         mock_module.RedisCacheAdapter = mock_redis_class
 
         # Inject the mock module before calling _create_cache
-        original_modules = sys.modules.copy()
         sys.modules["goodtogo.adapters.cache_redis"] = mock_module
 
         try:

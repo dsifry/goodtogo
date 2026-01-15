@@ -574,6 +574,7 @@ class TestSqliteCacheAdapterEdgeCases:
     def test_init_with_relative_path(self) -> None:
         """Init should handle a simple filename path."""
         import os
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # Change to temp dir and use a relative path
             original_dir = os.getcwd()
@@ -613,7 +614,6 @@ class TestSqliteCacheAdapterEdgeCases:
 
         This is a defensive branch that shouldn't normally trigger.
         """
-        from unittest.mock import patch, MagicMock
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
@@ -632,7 +632,7 @@ class TestSqliteCacheAdapterEdgeCases:
                     return False
                 return original_exists(self)
 
-            with patch.object(Path, 'exists', mock_exists):
+            with patch.object(Path, "exists", mock_exists):
                 adapter = SqliteCacheAdapter(db_path)
                 # Should still work even if the path check returns False
                 adapter.set("key", "value", ttl_seconds=300)
@@ -664,7 +664,6 @@ class TestSqliteCacheAdapterEdgeCases:
 
         This is achieved by mocking cache_dir to be falsy.
         """
-        from unittest.mock import patch, PropertyMock
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
@@ -674,6 +673,7 @@ class TestSqliteCacheAdapterEdgeCases:
 
             class FalsyPath:
                 """A path-like object that evaluates to False."""
+
                 def __bool__(self):
                     return False
 
@@ -689,7 +689,7 @@ class TestSqliteCacheAdapterEdgeCases:
                 # For other calls, return normal parent
                 return original_parent.fget(self)
 
-            with patch.object(Path, 'parent', mock_parent):
+            with patch.object(Path, "parent", mock_parent):
                 adapter = SqliteCacheAdapter(db_path)
                 adapter.set("key", "value", ttl_seconds=300)
                 adapter.close()

@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from goodtogo.adapters.github import GitHubAdapter
-from goodtogo.core.errors import redact_error, RedactedError
+from goodtogo.core.errors import RedactedError, redact_error
 
 
 class TestGitHubAdapterTokenProtection:

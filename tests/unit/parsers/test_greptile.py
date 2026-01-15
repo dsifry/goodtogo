@@ -25,9 +25,7 @@ class TestGreptileParserCanParse:
         """Test detection by exact author match."""
         assert parser.can_parse("greptile[bot]", "") is True
 
-    def test_can_parse_by_author_case_insensitive(
-        self, parser: GreptileParser
-    ) -> None:
+    def test_can_parse_by_author_case_insensitive(self, parser: GreptileParser) -> None:
         """Test that author matching is case-insensitive."""
         assert parser.can_parse("Greptile[bot]", "") is True
         assert parser.can_parse("GREPTILE[BOT]", "") is True
@@ -116,9 +114,7 @@ class TestGreptileParserActionableCount:
         assert priority == Priority.MINOR
         assert requires_investigation is False
 
-    def test_parse_actionable_count_case_insensitive(
-        self, parser: GreptileParser
-    ) -> None:
+    def test_parse_actionable_count_case_insensitive(self, parser: GreptileParser) -> None:
         """Test actionable count pattern is case-insensitive."""
         body = "ACTIONABLE COMMENTS POSTED: 3"
         comment = {"body": body}
@@ -126,9 +122,7 @@ class TestGreptileParserActionableCount:
 
         assert classification == CommentClassification.ACTIONABLE
 
-    def test_parse_actionable_count_with_whitespace(
-        self, parser: GreptileParser
-    ) -> None:
+    def test_parse_actionable_count_with_whitespace(self, parser: GreptileParser) -> None:
         """Test actionable count with extra whitespace."""
         body = "Actionable comments posted:    10"
         comment = {"body": body}
@@ -136,9 +130,7 @@ class TestGreptileParserActionableCount:
 
         assert classification == CommentClassification.ACTIONABLE
 
-    def test_parse_actionable_count_in_larger_body(
-        self, parser: GreptileParser
-    ) -> None:
+    def test_parse_actionable_count_in_larger_body(self, parser: GreptileParser) -> None:
         """Test actionable count pattern embedded in larger body."""
         body = """
         ## Greptile Review Summary
@@ -259,9 +251,7 @@ class TestGreptileParserEdgeCases:
         """Create a GreptileParser instance."""
         return GreptileParser()
 
-    def test_actionable_count_takes_precedence_over_summary(
-        self, parser: GreptileParser
-    ) -> None:
+    def test_actionable_count_takes_precedence_over_summary(self, parser: GreptileParser) -> None:
         """Test that actionable count takes precedence over review summary."""
         body = """
         # Summary

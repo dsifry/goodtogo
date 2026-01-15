@@ -8,15 +8,12 @@ exit codes, and error handling.
 from __future__ import annotations
 
 import json
-import os
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from goodtogo.cli import EXIT_CODES, main
-from goodtogo.container import Container
 from goodtogo.core.models import (
     CacheStats,
     CICheck,
@@ -24,8 +21,8 @@ from goodtogo.core.models import (
     Comment,
     CommentClassification,
     PRAnalysisResult,
-    PRStatus,
     Priority,
+    PRStatus,
     ReviewerType,
     ThreadSummary,
 )
@@ -84,9 +81,7 @@ class TestMissingGitHubToken:
 class TestInvalidRepoFormat:
     """Tests for handling invalid --repo format."""
 
-    def test_repo_without_slash_exits_with_error(
-        self, cli_runner: CliRunner, mock_env
-    ):
+    def test_repo_without_slash_exits_with_error(self, cli_runner: CliRunner, mock_env):
         """CLI should exit with code 4 when --repo is not owner/repo format."""
         result = cli_runner.invoke(
             main,
@@ -356,9 +351,7 @@ class TestTextOutput:
             cache_stats=None,
         )
 
-    def test_text_output_shows_status(
-        self, cli_runner: CliRunner, ready_result: PRAnalysisResult
-    ):
+    def test_text_output_shows_status(self, cli_runner: CliRunner, ready_result: PRAnalysisResult):
         """Text output should display the PR status."""
         with patch("goodtogo.cli.Container") as mock_container_cls:
             mock_container = MagicMock()
@@ -744,7 +737,10 @@ class TestVerboseAmbiguousComments:
                     id="2",
                     author="another-reviewer",
                     reviewer_type=ReviewerType.HUMAN,
-                    body="Have you considered the performance implications of this change? It might be slow for large inputs.",
+                    body=(
+                        "Have you considered the performance implications "
+                        "of this change? It might be slow for large inputs."
+                    ),
                     classification=CommentClassification.AMBIGUOUS,
                     priority=Priority.UNKNOWN,
                     requires_investigation=True,
@@ -779,7 +775,10 @@ class TestVerboseAmbiguousComments:
                     id="2",
                     author="another-reviewer",
                     reviewer_type=ReviewerType.HUMAN,
-                    body="Have you considered the performance implications of this change? It might be slow for large inputs.",
+                    body=(
+                        "Have you considered the performance implications "
+                        "of this change? It might be slow for large inputs."
+                    ),
                     classification=CommentClassification.AMBIGUOUS,
                     priority=Priority.UNKNOWN,
                     requires_investigation=True,
@@ -847,7 +846,7 @@ class TestVerboseAmbiguousComments:
                 )
 
         # The second comment body is longer than 80 chars, should be truncated
-        # "Have you considered the performance implications of this change? It might be slow for large inputs."
+        # "Have you considered the performance implications of this change?..."
         # After truncation it should have "..." appended
         assert "..." in result.output
 

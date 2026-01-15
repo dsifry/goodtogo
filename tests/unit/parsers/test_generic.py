@@ -179,9 +179,7 @@ class TestGenericParserAmbiguous:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
-    def test_ambiguous_always_requires_investigation(
-        self, parser: GenericParser
-    ) -> None:
+    def test_ambiguous_always_requires_investigation(self, parser: GenericParser) -> None:
         """Test that AMBIGUOUS classification always has requires_investigation=True."""
         # Test multiple scenarios that should result in AMBIGUOUS
         test_cases = [
@@ -195,8 +193,7 @@ class TestGenericParserAmbiguous:
             classification, _, requires_investigation = parser.parse(comment)
             if classification == CommentClassification.AMBIGUOUS:
                 assert requires_investigation is True, (
-                    f"AMBIGUOUS comment should have requires_investigation=True: "
-                    f"{comment}"
+                    f"AMBIGUOUS comment should have requires_investigation=True: " f"{comment}"
                 )
 
 
@@ -208,9 +205,7 @@ class TestGenericParserPrecedence:
         """Create a GenericParser instance."""
         return GenericParser()
 
-    def test_resolved_takes_precedence_over_outdated(
-        self, parser: GenericParser
-    ) -> None:
+    def test_resolved_takes_precedence_over_outdated(self, parser: GenericParser) -> None:
         """Test resolved check comes before outdated check."""
         # Both resolved and outdated = NON_ACTIONABLE (resolved checked first)
         comment = {
@@ -258,9 +253,7 @@ class TestGenericParserEdgeCases:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
-    def test_parse_resolved_with_false_like_values(
-        self, parser: GenericParser
-    ) -> None:
+    def test_parse_resolved_with_false_like_values(self, parser: GenericParser) -> None:
         """Test that only explicit False is not-resolved, falsy values vary."""
         # None is treated as False by .get() default
         comment = {"body": "Comment", "is_resolved": None}
@@ -283,9 +276,7 @@ class TestGenericParserEdgeCases:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
-    def test_parse_human_approval_still_ambiguous(
-        self, parser: GenericParser
-    ) -> None:
+    def test_parse_human_approval_still_ambiguous(self, parser: GenericParser) -> None:
         """Test that human approval comments are still AMBIGUOUS."""
         # GenericParser doesn't understand approval patterns
         comment = {"body": "LGTM! Ship it."}
