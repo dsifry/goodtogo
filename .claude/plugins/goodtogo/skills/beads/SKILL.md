@@ -483,13 +483,33 @@ Before closing an epic, verify ALL:
 
 - [ ] All BEADS tasks under epic are closed
 - [ ] PR is created and linked to GitHub Issue
-- [ ] All CI checks are passing
-- [ ] All PR comments are addressed
-- [ ] All PR threads are resolved
+- [ ] **`gtg check` returns exit code 0** (deterministic PR readiness gate)
+  ```bash
+  gtg check "$OWNER/$REPO" "$PR_NUMBER"
+  # Must return exit code 0 (READY) before proceeding
+  ```
 - [ ] Human has approved merge
 - [ ] PR is merged to main
 - [ ] GitHub Issue is closed
 - [ ] Learnings extracted to knowledge base
+
+### gtg as the Deterministic Gate
+
+The `gtg check` command replaces manual verification of:
+- All CI checks passing
+- All PR comments addressed
+- All PR threads resolved
+
+**A PR is NOT ready until `gtg check` returns exit code 0.**
+
+```bash
+# Check PR readiness deterministically
+gtg check owner/repo 123
+echo "Exit code: $?"  # Must be 0
+
+# For details on what's blocking:
+gtg check owner/repo 123 --json | jq '.action_items'
+```
 
 ---
 

@@ -121,15 +121,26 @@ bd label add <task-id> review:approved
 
 ### Step 4: Completion
 
-When PR is ready to merge:
+When PR is ready to merge, **verify with gtg first**:
 
 ```bash
-# All checks passing, all threads resolved
-bd update <task-id> --status completed
-bd close <task-id> --reason "PR #${PR_NUMBER} ready to merge. All CI green, all threads resolved."
+# DETERMINISTIC CHECK: gtg must return exit code 0
+OWNER=$(gh repo view --json owner -q .owner.login)
+REPO=$(gh repo view --json name -q .name)
 
-# Notify Issue Orchestrator
-# The epic can now proceed to human approval for merge
+gtg check "$OWNER/$REPO" "$PR_NUMBER"
+GTG_EXIT=$?
+
+if [ $GTG_EXIT -eq 0 ]; then
+  # Good to go! Close the task
+  bd update <task-id> --status completed
+  bd close <task-id> --reason "PR #${PR_NUMBER} ready to merge. gtg check passed (exit 0)."
+else
+  # Not ready - gtg tells us why
+  echo "PR not ready. gtg exit code: $GTG_EXIT"
+  gtg check "$OWNER/$REPO" "$PR_NUMBER" --json | jq '.action_items'
+  # Stay in monitoring state
+fi
 ```
 
 ---
@@ -309,10 +320,19 @@ The PR Shepherd reports status via PR comments:
 
 ## Success Criteria
 
+**Deterministic gate**: `gtg check` must return exit code 0
+
+```bash
+gtg check "$OWNER/$REPO" "$PR_NUMBER"
+# Exit code 0 = ready, anything else = not ready
+```
+
+This single command verifies:
 - [ ] All CI checks passing
 - [ ] All review comments addressed
 - [ ] All threads resolved
-- [ ] No unresolved conversations
+
+Additional requirements:
 - [ ] BEADS task updated throughout
 - [ ] Human notified when ready
 - [ ] PR merged successfully
