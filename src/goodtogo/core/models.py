@@ -275,5 +275,5 @@ class PRAnalysisResult(BaseModel):
     needs_action: bool
     """True if any action is required before merge."""
 
-    cache_stats: CacheStats | None
+    cache_stats: Optional[CacheStats]
     """Cache performance metrics, if caching is enabled."""

@@ -85,7 +85,7 @@ class SqliteCacheAdapter(CachePort):
             OSError: If unable to create directory or set permissions.
         """
         self.db_path = db_path
-        self._connection: sqlite3.Connection | None = None
+        self._connection: Optional[sqlite3.Connection] = None
         self._ensure_secure_path()
         self._init_database()
 

@@ -184,8 +184,8 @@ class Container:
     @classmethod
     def create_for_testing(
         cls,
-        github: GitHubPort | None = None,
-        cache: CachePort | None = None,
+        github: Optional[GitHubPort] = None,
+        cache: Optional[CachePort] = None,
     ) -> Container:
         """Factory for tests - all mocks by default.
 

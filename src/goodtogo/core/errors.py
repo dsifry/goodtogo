@@ -8,6 +8,7 @@ exception tracebacks.
 from __future__ import annotations
 
 import re
+from typing import Optional
 
 
 class RedactedError(Exception):
@@ -28,7 +29,7 @@ class RedactedError(Exception):
         Exception('Failed with token ghp_secret123')
     """
 
-    def __init__(self, message: str, original: Exception | None = None) -> None:
+    def __init__(self, message: str, original: Optional[Exception] = None) -> None:
         """Initialize a RedactedError.
 
         Args:
