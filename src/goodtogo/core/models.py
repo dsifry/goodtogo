@@ -8,6 +8,7 @@ CI status, and thread information.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -124,7 +125,7 @@ class Comment(BaseModel):
     requires_investigation: bool
     """True if AMBIGUOUS and needs agent investigation."""
 
-    thread_id: str | None
+    thread_id: Optional[str]
     """ID of the review thread this comment belongs to, if any."""
 
     is_resolved: bool
@@ -133,16 +134,16 @@ class Comment(BaseModel):
     is_outdated: bool
     """Whether this comment is outdated (code has changed)."""
 
-    file_path: str | None
+    file_path: Optional[str]
     """Path to the file this comment references, if any."""
 
-    line_number: int | None
+    line_number: Optional[int]
     """Line number in the file this comment references, if any."""
 
     created_at: str
     """ISO 8601 timestamp when the comment was created."""
 
-    addressed_in_commit: str | None
+    addressed_in_commit: Optional[str]
     """SHA of commit that addressed this comment, if known."""
 
 
@@ -158,10 +159,10 @@ class CICheck(BaseModel):
     status: str
     """Current status: 'success', 'failure', or 'pending'."""
 
-    conclusion: str | None
+    conclusion: Optional[str]
     """Final conclusion of the check, if completed."""
 
-    url: str | None
+    url: Optional[str]
     """URL to the check details/logs."""
 
 

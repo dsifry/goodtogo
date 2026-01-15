@@ -67,6 +67,7 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["UP045"]  # Allow Optional[X] for Python 3.9 compatibility
 
 [tool.mypy]
 python_version = "3.9"

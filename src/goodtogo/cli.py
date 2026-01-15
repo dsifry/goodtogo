@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Optional
 
 import click
 
@@ -82,7 +83,7 @@ def main(
     repo: str,
     cache: str,
     cache_path: str,
-    redis_url: str | None,
+    redis_url: Optional[str],
     output_format: str,
     verbose: bool,
 ) -> None:

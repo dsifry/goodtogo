@@ -13,6 +13,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from fnmatch import fnmatch
+from typing import Optional
 
 from goodtogo.core.interfaces import CachePort
 from goodtogo.core.models import CacheStats
@@ -62,7 +63,7 @@ class InMemoryCacheAdapter(CachePort):
         self._hits: int = 0
         self._misses: int = 0
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Optional[str]:
         """Get cached value if it exists and has not expired.
 
         Retrieves a value from the cache. If the entry exists but has

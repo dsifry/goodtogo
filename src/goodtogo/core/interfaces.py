@@ -11,7 +11,7 @@ interfaces ensure the core domain has no external dependencies.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from goodtogo.core.models import (
@@ -186,7 +186,7 @@ class CachePort(ABC):
     """
 
     @abstractmethod
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Optional[str]:
         """Get cached value.
 
         Retrieves a value from the cache if it exists and has not expired.

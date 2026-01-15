@@ -23,7 +23,7 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
 from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
@@ -146,7 +146,7 @@ class Container:
         github_token: str,
         cache_type: str = "sqlite",
         cache_path: str = ".goodtogo/cache.db",
-        redis_url: str | None = None,
+        redis_url: Optional[str] = None,
     ) -> Container:
         """Factory for standard production configuration.
 
@@ -219,7 +219,7 @@ class Container:
         )
 
 
-def _create_cache(cache_type: str, path: str, redis_url: str | None) -> CachePort:
+def _create_cache(cache_type: str, path: str, redis_url: Optional[str]) -> CachePort:
     """Create cache adapter based on type.
 
     Factory function that creates the appropriate cache adapter

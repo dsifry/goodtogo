@@ -13,7 +13,7 @@ Security features:
 from __future__ import annotations
 
 import time
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import httpx
 
@@ -476,7 +476,7 @@ class GitHubAdapter(GitHubPort):
             GitHubAPIError: If any request fails.
         """
         results: list[dict[str, Any]] = []
-        url: str | None = endpoint
+        url: Optional[str] = endpoint
         params: dict[str, str] = {"per_page": "100"}
 
         while url is not None:
@@ -495,7 +495,7 @@ class GitHubAdapter(GitHubPort):
 
         return results
 
-    def _get_next_page_url(self, response: httpx.Response) -> str | None:
+    def _get_next_page_url(self, response: httpx.Response) -> Optional[str]:
         """Extract next page URL from Link header.
 
         Args:

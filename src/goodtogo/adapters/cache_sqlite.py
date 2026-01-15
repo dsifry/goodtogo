@@ -18,7 +18,7 @@ import stat
 import time
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from goodtogo.core.interfaces import CachePort
 
@@ -147,7 +147,7 @@ class SqliteCacheAdapter(CachePort):
             self._connection.row_factory = sqlite3.Row
         return self._connection
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Optional[str]:
         """Get cached value.
 
         Retrieves a value from the cache if it exists and has not expired.
