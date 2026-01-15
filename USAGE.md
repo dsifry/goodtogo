@@ -5,7 +5,7 @@ Complete documentation for the `gtg` CLI tool.
 ## Installation
 
 ```bash
-pip install goodtogo
+pip install gtg
 ```
 
 ### Requirements

@@ -33,7 +33,7 @@ Returns:
 ## Installation
 
 ```bash
-pip install goodtogo
+pip install gtg
 ```
 
 That's it. No other dependencies required.

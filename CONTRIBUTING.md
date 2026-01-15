@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Good To Go! This guide covers eve
 
 **If you just want to USE Good To Go**, see the [README](README.md) - you only need:
 ```bash
-pip install goodtogo
+pip install gtg
 ```
 
 **This guide is for DEVELOPING Good To Go itself** - contributing code, fixing bugs, adding features.

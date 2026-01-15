@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "goodtogo"
+name = "gtg"
 version = "0.1.0"
 description = "Deterministic PR readiness detection for AI coding agents"
 readme = "README.md"
