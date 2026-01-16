@@ -177,10 +177,10 @@ class Container:
             ValueError: If cache_type is "redis" but redis_url is not provided,
                        or if cache_type is unknown.
         """
-        cache = _create_cache(cache_type, cache_path, redis_url)
         time_provider = SystemTimeProvider()
+        cache = _create_cache(cache_type, cache_path, redis_url, time_provider)
         return cls(
-            github=GitHubAdapter(token=github_token),
+            github=GitHubAdapter(token=github_token, time_provider=time_provider),
             cache=cache,
             parsers=_create_default_parsers(),
             time_provider=time_provider,
@@ -226,15 +226,25 @@ class Container:
             container = Container.create_for_testing(time_provider=time)
             time.advance(60)  # Advance 60 seconds instantly
         """
+        resolved_time_provider = time_provider if time_provider is not None else MockTimeProvider()
         return cls(
             github=github if github is not None else MockGitHubAdapter(),
-            cache=cache if cache is not None else InMemoryCacheAdapter(),
+            cache=(
+                cache
+                if cache is not None
+                else InMemoryCacheAdapter(time_provider=resolved_time_provider)
+            ),
             parsers=_create_default_parsers(),
-            time_provider=time_provider if time_provider is not None else MockTimeProvider(),
+            time_provider=resolved_time_provider,
         )
 
 
-def _create_cache(cache_type: str, path: str, redis_url: Optional[str]) -> CachePort:
+def _create_cache(
+    cache_type: str,
+    path: str,
+    redis_url: Optional[str],
+    time_provider: Optional[TimeProvider] = None,
+) -> CachePort:
     """Create cache adapter based on type.
 
     Factory function that creates the appropriate cache adapter
@@ -247,6 +257,7 @@ def _create_cache(cache_type: str, path: str, redis_url: Optional[str]) -> Cache
                    - "none": No-op cache adapter
         path: Path to SQLite database file (only used for "sqlite").
         redis_url: Redis connection URL (only used for "redis").
+        time_provider: Optional TimeProvider for time operations.
 
     Returns:
         CachePort implementation matching the requested type.
@@ -256,7 +267,7 @@ def _create_cache(cache_type: str, path: str, redis_url: Optional[str]) -> Cache
                    or if cache_type is unknown.
     """
     if cache_type == "sqlite":
-        return SqliteCacheAdapter(path)
+        return SqliteCacheAdapter(path, time_provider=time_provider)
     elif cache_type == "redis":
         if not redis_url:
             raise ValueError("redis_url required for redis cache")
@@ -271,7 +282,7 @@ def _create_cache(cache_type: str, path: str, redis_url: Optional[str]) -> Cache
         # No-op cache - use in-memory with immediate expiration
         # For a true no-op, we could create a NoCacheAdapter, but
         # InMemoryCacheAdapter with TTL=0 effectively accomplishes this
-        return InMemoryCacheAdapter()
+        return InMemoryCacheAdapter(time_provider=time_provider)
     else:
         raise ValueError(f"Unknown cache type: {cache_type}")
 
