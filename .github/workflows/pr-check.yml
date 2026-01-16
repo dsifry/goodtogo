@@ -35,8 +35,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install gtg
-        run: pip install gtg
+      - name: Install goodtogo
+        run: pip install goodtogo
 
       - name: Run gtg check
         id: gtg
@@ -98,12 +98,17 @@ jobs:
           path: gtg-result.json
 
       - name: Post status to PR
-        if: always()
+        if: always() && steps.pr.outputs.pr_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXIT_CODE=${{ steps.gtg.outputs.exit_code }}
+          EXIT_CODE="${{ steps.gtg.outputs.exit_code }}"
           PR_NUMBER=${{ steps.pr.outputs.pr_number }}
+
+          # Default to error state if exit code is empty
+          if [ -z "$EXIT_CODE" ]; then
+            EXIT_CODE=4
+          fi
 
           case $EXIT_CODE in
             0) STATUS_EMOJI="✅"; STATUS_TEXT="Good to Go!" ;;
