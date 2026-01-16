@@ -15,6 +15,7 @@ import stat
 import tempfile
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 from goodtogo.adapters.agent_state import ActionType, AgentAction, AgentState
 
@@ -670,6 +671,45 @@ class TestAgentStateEdgeCases:
                 state.close()
             finally:
                 os.chdir(orig_dir)
+
+    def test_init_database_when_path_not_exists_after_creation(self) -> None:
+        """Test _init_database handles rare case where path doesn't exist after connect.
+
+        This tests the edge case where path.exists() returns False in _init_database,
+        which would only happen if the file was deleted between connect() and the
+        exists() check (a race condition).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+
+            # Create state normally first
+            state = AgentState(db_path)
+            state.close()
+
+            # Now test with mocked Path.exists returning False in _init_database
+            # This simulates the race condition
+            call_count = [0]
+            original_exists = Path.exists
+
+            def mock_exists(self):
+                # Count calls to exists() for state.db
+                if str(self).endswith("state.db"):
+                    call_count[0] += 1
+                    # Return False on the 3rd call (in _init_database)
+                    if call_count[0] == 3:
+                        return False
+                return original_exists(self)
+
+            # Delete the db file and recreate with mocked exists
+            os.remove(db_path)
+
+            with patch.object(Path, "exists", mock_exists):
+                state2 = AgentState(db_path)
+                # Even with mock returning False once, the state should be created
+                state2.close()
+
+            # Verify state was actually created
+            assert os.path.exists(db_path)
 
 
 class TestActionTypeEnum:

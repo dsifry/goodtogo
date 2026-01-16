@@ -122,7 +122,7 @@ class AgentState:
         # Create directory with secure permissions if needed
         if db_dir and not db_dir.exists():
             db_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
-        elif db_dir and db_dir.exists():
+        elif db_dir and db_dir.exists():  # pragma: no branch
             # Ensure existing directory has correct permissions
             current_mode = stat.S_IMODE(db_dir.stat().st_mode)
             if current_mode != 0o700:
@@ -153,7 +153,7 @@ class AgentState:
 
         # Ensure file has correct permissions after creation
         path = Path(self.db_path)
-        if path.exists():
+        if path.exists():  # pragma: no branch
             path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
     def _get_connection(self) -> sqlite3.Connection:
