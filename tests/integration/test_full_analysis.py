@@ -1700,6 +1700,7 @@ class TestParserFallbackLogic:
         This tests lines 473-474 in analyzer.py where it falls back to HUMAN parser.
         """
         from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.adapters.time_provider import MockTimeProvider
         from goodtogo.parsers.generic import GenericParser
 
         # Create a container with limited parsers (missing some types)
@@ -1714,6 +1715,7 @@ class TestParserFallbackLogic:
             github=mock_github,
             cache=InMemoryCacheAdapter(),
             parsers=limited_parsers,
+            time_provider=MockTimeProvider(),
         )
 
         # Setup mock data with a CodeRabbit comment (which has no parser)
@@ -1758,6 +1760,7 @@ class TestParserFallbackLogic:
         This tests lines 475-477 in analyzer.py where it uses the first available parser.
         """
         from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.adapters.time_provider import MockTimeProvider
         from goodtogo.parsers.coderabbit import CodeRabbitParser
 
         # Create a container with only one parser that doesn't match the comment
@@ -1770,6 +1773,7 @@ class TestParserFallbackLogic:
             github=mock_github,
             cache=InMemoryCacheAdapter(),
             parsers=minimal_parsers,
+            time_provider=MockTimeProvider(),
         )
 
         # Setup mock data with a human comment (HUMAN parser not available)
@@ -1885,6 +1889,7 @@ class TestActionItemsOtherPriority:
         This tests lines 642-645 in analyzer.py where 'other' comments are counted.
         """
         from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.adapters.time_provider import MockTimeProvider
         from goodtogo.core.interfaces import ReviewerParser
         from goodtogo.core.models import CommentClassification, Priority
 
@@ -1915,6 +1920,7 @@ class TestActionItemsOtherPriority:
             github=mock_github,
             cache=InMemoryCacheAdapter(),
             parsers=parsers,
+            time_provider=MockTimeProvider(),
         )
 
         # Setup mock data
@@ -1974,6 +1980,7 @@ class TestActionItemsOtherPriority:
         This tests the singular/plural logic in lines 643-645.
         """
         from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
+        from goodtogo.adapters.time_provider import MockTimeProvider
         from goodtogo.core.interfaces import ReviewerParser
         from goodtogo.core.models import CommentClassification, Priority
 
@@ -1996,6 +2003,7 @@ class TestActionItemsOtherPriority:
             github=mock_github,
             cache=InMemoryCacheAdapter(),
             parsers=parsers,
+            time_provider=MockTimeProvider(),
         )
 
         # Setup mock data with single comment
