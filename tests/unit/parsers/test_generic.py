@@ -297,3 +297,44 @@ class TestGenericParserEdgeCases:
 
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
+
+
+class TestGenericParserReplyPatterns:
+    """Tests for reply confirmation and approval pattern detection."""
+
+    @pytest.fixture
+    def parser(self) -> GenericParser:
+        """Create a GenericParser instance."""
+        return GenericParser()
+
+    def test_good_catch_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Good catch!' is classified as NON_ACTIONABLE."""
+        comment = {"body": "Good catch!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_lgtm_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'LGTM' is classified as NON_ACTIONABLE."""
+        comment = {"body": "LGTM!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_done_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Done' is classified as NON_ACTIONABLE."""
+        comment = {"body": "Done!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_reply_confirmation_no_match(self, parser: GenericParser) -> None:
+        """Test _is_reply_confirmation returns False for non-matching text."""
+        assert parser._is_reply_confirmation("Please fix this bug") is False
+
+    def test_is_approval_no_match(self, parser: GenericParser) -> None:
+        """Test _is_approval returns False for non-matching text."""
+        assert parser._is_approval("Needs changes") is False

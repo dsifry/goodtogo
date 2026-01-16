@@ -289,3 +289,57 @@ class TestGreptileParserEdgeCases:
 
         assert classification == CommentClassification.AMBIGUOUS
         assert requires_investigation is True
+
+
+class TestGreptileParserSeverityMarkers:
+    """Tests for Greptile severity marker detection."""
+
+    @pytest.fixture
+    def parser(self) -> GreptileParser:
+        """Create a GreptileParser instance."""
+        return GreptileParser()
+
+    def test_parse_security_marker_critical(self, parser: GreptileParser) -> None:
+        """Test **security:** marker is classified as ACTIONABLE CRITICAL."""
+        body = "**security:** This exposes sensitive data."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False
+
+    def test_parse_bug_marker_major(self, parser: GreptileParser) -> None:
+        """Test **bug:** marker is classified as ACTIONABLE MAJOR."""
+        body = "**bug:** This causes an exception."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MAJOR
+        assert requires_investigation is False
+
+    def test_parse_logic_marker_minor(self, parser: GreptileParser) -> None:
+        """Test **logic:** marker is classified as ACTIONABLE MINOR."""
+        body = "**logic:** This filter is unnecessary."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MINOR
+        assert requires_investigation is False
+
+    def test_parse_style_marker_trivial(self, parser: GreptileParser) -> None:
+        """Test **style:** marker is NON_ACTIONABLE TRIVIAL."""
+        body = "**style:** Use snake_case."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.TRIVIAL
+        assert requires_investigation is False
+
+    def test_severity_marker_no_match(self, parser: GreptileParser) -> None:
+        """Test _check_severity_markers returns None when no pattern matches."""
+        result = parser._check_severity_markers("No severity marker here.")
+        assert result is None
