@@ -20,7 +20,7 @@ Without deterministic answers, agents either wait too long, miss comments, or ke
 Good To Go provides **deterministic PR state analysis** via a simple CLI:
 
 ```bash
-gtg check owner/repo 123
+gtm 123 --repo owner/repo
 ```
 
 Returns:
@@ -44,10 +44,13 @@ That's it. No other dependencies required.
 
 ```bash
 # Check if PR #123 in myorg/myrepo is ready to merge
-gtg check myorg/myrepo 123
+gtm 123 --repo myorg/myrepo
 
 # With JSON output for programmatic use
-gtg check myorg/myrepo 123 --json
+gtm 123 --repo myorg/myrepo --format json
+
+# Human-readable text format
+gtm 123 --repo myorg/myrepo --format text
 ```
 
 ### Authentication
@@ -58,11 +61,7 @@ Set your GitHub token:
 export GITHUB_TOKEN=ghp_your_token_here
 ```
 
-Or pass it directly:
-
-```bash
-gtg check myorg/myrepo 123 --token ghp_your_token_here
-```
+Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` flag for security reasons.
 
 ### Exit Codes
 
@@ -74,10 +73,62 @@ gtg check myorg/myrepo 123 --token ghp_your_token_here
 | 3 | CI_FAILING | CI/CD checks failing |
 | 4 | ERROR | Error fetching PR data |
 
+### Quick Examples
+
+Here's what the output looks like for each status (using `--format text`):
+
+**READY (Exit Code 0)** - All clear, ready to merge:
+```
+OK PR #123: READY
+   CI: success (5/5 passed)
+   Threads: 3/3 resolved
+```
+
+**ACTION_REQUIRED (Exit Code 1)** - Actionable comments need attention:
+```
+!! PR #456: ACTION_REQUIRED
+   CI: success (5/5 passed)
+   Threads: 8/8 resolved
+
+Action required:
+   - Fix CRITICAL comment from coderabbit in src/db.py:42
+   - 2 comments require investigation (ambiguous)
+```
+
+**UNRESOLVED_THREADS (Exit Code 2)** - Review threads need resolution:
+```
+?? PR #789: UNRESOLVED_THREADS
+   CI: success (5/5 passed)
+   Threads: 2/4 resolved
+
+Action required:
+   - 2 unresolved review threads need attention
+```
+
+**CI_FAILING (Exit Code 3)** - CI checks not passing:
+```
+XX PR #101: CI_FAILING
+   CI: failure (3/5 passed)
+   Threads: 2/2 resolved
+
+Action required:
+   - CI checks are failing - fix build/test errors
+```
+
+### Text Format Status Icons
+
+| Icon | Status | Meaning |
+|------|--------|---------|
+| `OK` | READY | All clear - good to go! |
+| `!!` | ACTION_REQUIRED | Actionable comments need fixes |
+| `??` | UNRESOLVED_THREADS | Unresolved review threads |
+| `XX` | CI_FAILING | CI/CD checks failing |
+| `##` | ERROR | Error fetching PR data |
+
 ### JSON Output
 
 ```bash
-gtg check myorg/myrepo 123 --json
+gtm 123 --repo myorg/myrepo --format json
 ```
 
 Returns structured data including:
@@ -85,6 +136,8 @@ Returns structured data including:
 - Thread summary (resolved/unresolved counts)
 - Classified comments (actionable vs non-actionable)
 - Action items list
+
+See [USAGE.md](USAGE.md) for full JSON schema and examples.
 
 ## Supported Automated Reviewers
 
@@ -105,7 +158,7 @@ import subprocess
 import json
 
 result = subprocess.run(
-    ["gtg", "check", "owner/repo", "123", "--json"],
+    ["gtm", "123", "--repo", "owner/repo", "--format", "json"],
     capture_output=True,
     text=True
 )
