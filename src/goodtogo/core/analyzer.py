@@ -29,6 +29,7 @@ from goodtogo.core.models import (
     PRStatus,
     ReviewerType,
     ThreadSummary,
+    UnresolvedThread,
 )
 from goodtogo.core.validation import (
     build_cache_key,
@@ -507,6 +508,7 @@ class PRAnalyzer:
             line_number=comment_data.get("line"),
             created_at=comment_data.get("created_at", ""),
             addressed_in_commit=None,
+            url=comment_data.get("html_url"),
         )
 
     def _build_ci_status(self, ci_data: dict[str, Any], exclude_checks: set[str]) -> CIStatus:
@@ -597,18 +599,44 @@ class PRAnalyzer:
             threads_data: List of thread dictionaries.
 
         Returns:
-            ThreadSummary with resolution counts.
+            ThreadSummary with resolution counts and unresolved thread details.
         """
         total = len(threads_data)
         resolved = sum(1 for t in threads_data if t.get("is_resolved", False))
         outdated = sum(1 for t in threads_data if t.get("is_outdated", False))
         unresolved = total - resolved
 
+        # Build list of unresolved thread details for agent workflows
+        unresolved_threads: list[UnresolvedThread] = []
+        for thread in threads_data:
+            if not thread.get("is_resolved", False):
+                # Get first comment info
+                comments = thread.get("comments", [])
+                first_comment = comments[0] if comments else {}
+                author = first_comment.get("author", "unknown")
+                body = first_comment.get("body", "")
+                body_preview = body[:200] if body else ""
+
+                # URL is optional - may be added by GraphQL query in future
+                url = thread.get("url")
+
+                unresolved_threads.append(
+                    UnresolvedThread(
+                        id=thread.get("id", ""),
+                        url=url,
+                        path=thread.get("path", ""),
+                        line=thread.get("line"),
+                        author=author,
+                        body_preview=body_preview,
+                    )
+                )
+
         return ThreadSummary(
             total=total,
             resolved=resolved,
             unresolved=unresolved,
             outdated=outdated,
+            unresolved_threads=unresolved_threads,
         )
 
     def _generate_action_items(

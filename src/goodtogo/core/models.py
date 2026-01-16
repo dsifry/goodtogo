@@ -146,6 +146,9 @@ class Comment(BaseModel):
     addressed_in_commit: Optional[str]
     """SHA of commit that addressed this comment, if known."""
 
+    url: Optional[str] = None
+    """URL to view this comment on GitHub, for agent workflows."""
+
 
 class CICheck(BaseModel):
     """Individual CI check status.
@@ -192,6 +195,33 @@ class CIStatus(BaseModel):
     """List of individual CI check results."""
 
 
+class UnresolvedThread(BaseModel):
+    """Detailed information about an unresolved review thread.
+
+    Contains all data an agent needs to resolve a thread without
+    additional API calls, including the GraphQL node ID for the
+    resolution mutation.
+    """
+
+    id: str
+    """GraphQL node ID for resolution mutation."""
+
+    url: Optional[str]
+    """Link to thread in GitHub UI (if available)."""
+
+    path: str
+    """File path the thread is attached to."""
+
+    line: Optional[int]
+    """Line number in the diff."""
+
+    author: str
+    """Username of the first comment author."""
+
+    body_preview: str
+    """First 200 characters of the first comment body."""
+
+
 class ThreadSummary(BaseModel):
     """Thread resolution summary.
 
@@ -210,6 +240,9 @@ class ThreadSummary(BaseModel):
 
     outdated: int
     """Number of outdated threads (code changed since comment)."""
+
+    unresolved_threads: list[UnresolvedThread]
+    """Detailed information about each unresolved thread for agent workflows."""
 
 
 class CacheStats(BaseModel):
