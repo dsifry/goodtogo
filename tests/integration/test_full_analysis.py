@@ -1219,6 +1219,186 @@ class TestCIStatusMapping:
 
 
 # ============================================================================
+# Test: Exclude Checks Feature
+# ============================================================================
+
+
+class TestExcludeChecks:
+    """Tests for the exclude_checks parameter in analyze()."""
+
+    def test_exclude_failing_check_run(
+        self,
+        test_container: Container,
+        mock_github: MockableGitHubAdapter,
+        make_pr_data,
+    ):
+        """Excluding a failing check run should result in success state.
+
+        This tests the exclude_checks feature when a check_run is excluded.
+        """
+        # Setup - one passing check, one failing check
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews([])
+        mock_github.set_threads([])
+        mock_github.set_ci_status(
+            {
+                "state": "failure",
+                "statuses": [],
+                "check_runs": [
+                    {
+                        "name": "build",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "html_url": "https://github.com/actions/build",
+                    },
+                    {
+                        "name": "gtg-check",
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "html_url": "https://github.com/actions/gtg",
+                    },
+                ],
+            }
+        )
+
+        # Execute with gtg-check excluded
+        analyzer = PRAnalyzer(test_container)
+        result = analyzer.analyze("owner", "repo", 123, exclude_checks={"gtg-check"})
+
+        # Verify - gtg-check should be excluded, only build remains
+        assert result.ci_status.total_checks == 1
+        assert result.ci_status.passed == 1
+        assert result.ci_status.failed == 0
+        assert result.ci_status.state == "success"
+        assert result.status == PRStatus.READY
+        # Verify the excluded check is not in the list
+        assert all(c.name != "gtg-check" for c in result.ci_status.checks)
+
+    def test_exclude_failing_status_check(
+        self,
+        test_container: Container,
+        mock_github: MockableGitHubAdapter,
+        make_pr_data,
+    ):
+        """Excluding a failing status check should result in success state.
+
+        This tests the exclude_checks feature with traditional status checks.
+        """
+        # Setup - one passing status, one failing status
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews([])
+        mock_github.set_threads([])
+        mock_github.set_ci_status(
+            {
+                "state": "failure",
+                "statuses": [
+                    {
+                        "context": "build",
+                        "state": "success",
+                        "target_url": "https://ci.example.com/build",
+                    },
+                    {
+                        "context": "gtg-check",
+                        "state": "failure",
+                        "target_url": "https://ci.example.com/gtg",
+                    },
+                ],
+                "check_runs": [],
+            }
+        )
+
+        # Execute with gtg-check excluded
+        analyzer = PRAnalyzer(test_container)
+        result = analyzer.analyze("owner", "repo", 123, exclude_checks={"gtg-check"})
+
+        # Verify - gtg-check should be excluded, only build remains
+        assert result.ci_status.total_checks == 1
+        assert result.ci_status.passed == 1
+        assert result.ci_status.failed == 0
+        assert result.ci_status.state == "success"
+        assert result.status == PRStatus.READY
+
+    def test_exclude_all_checks_results_in_success(
+        self,
+        test_container: Container,
+        mock_github: MockableGitHubAdapter,
+        make_pr_data,
+    ):
+        """Excluding all checks should result in success state (empty = pass).
+
+        This tests the edge case where all checks are excluded.
+        """
+        # Setup - only one failing check
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews([])
+        mock_github.set_threads([])
+        mock_github.set_ci_status(
+            {
+                "state": "failure",
+                "statuses": [],
+                "check_runs": [
+                    {
+                        "name": "gtg-check",
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "html_url": "https://github.com/actions/gtg",
+                    },
+                ],
+            }
+        )
+
+        # Execute with gtg-check excluded (now no checks remain)
+        analyzer = PRAnalyzer(test_container)
+        result = analyzer.analyze("owner", "repo", 123, exclude_checks={"gtg-check"})
+
+        # Verify - no checks means success
+        assert result.ci_status.total_checks == 0
+        assert result.ci_status.passed == 0
+        assert result.ci_status.failed == 0
+        assert result.ci_status.state == "success"
+        assert result.status == PRStatus.READY
+
+    def test_exclude_checks_empty_set_keeps_all_checks(
+        self,
+        test_container: Container,
+        mock_github: MockableGitHubAdapter,
+        make_pr_data,
+    ):
+        """Empty exclude_checks set should keep all checks."""
+        # Setup
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews([])
+        mock_github.set_threads([])
+        mock_github.set_ci_status(
+            {
+                "state": "failure",
+                "statuses": [],
+                "check_runs": [
+                    {
+                        "name": "gtg-check",
+                        "status": "completed",
+                        "conclusion": "failure",
+                        "html_url": "https://github.com/actions/gtg",
+                    },
+                ],
+            }
+        )
+
+        # Execute with empty exclude set
+        analyzer = PRAnalyzer(test_container)
+        result = analyzer.analyze("owner", "repo", 123, exclude_checks=set())
+
+        # Verify - all checks should be included
+        assert result.ci_status.total_checks == 1
+        assert result.ci_status.failed == 1
+        assert result.status == PRStatus.CI_FAILING
+
+
+# ============================================================================
 # Test: Action Items Generation Edge Cases
 # ============================================================================
 
