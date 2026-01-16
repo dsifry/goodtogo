@@ -8,6 +8,7 @@ CodeRabbit uses specific patterns to indicate comment severity and type:
 - Fingerprinting comments (internal metadata)
 - Resolution status markers
 - Outside diff range notifications
+- Summary/walkthrough sections (non-actionable)
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ class CodeRabbitParser(ReviewerParser):
         - Fingerprinting HTML comments: NON_ACTIONABLE
         - Addressed checkmarks: NON_ACTIONABLE
         - Outside diff range mentions: ACTIONABLE (MINOR)
+        - Summary/walkthrough sections: NON_ACTIONABLE
+        - Tip/info boxes: NON_ACTIONABLE
         - All other: AMBIGUOUS
 
     Author detection:
@@ -74,6 +77,34 @@ class CodeRabbitParser(ReviewerParser):
 
     # Outside diff range (in review body)
     OUTSIDE_DIFF_PATTERN = re.compile(r"Outside diff range", re.IGNORECASE)
+
+    # Summary/walkthrough patterns (non-actionable informational content)
+    # These are overview sections that don't require action
+    SUMMARY_PATTERNS = [
+        # Walkthrough header
+        re.compile(r"^##\s*Walkthrough", re.MULTILINE),
+        # Changes summary header
+        re.compile(r"^##\s*Changes", re.MULTILINE),
+        # Summary header
+        re.compile(r"^##\s*Summary", re.MULTILINE),
+        # PR summary pattern
+        re.compile(r"^##\s*PR\s+Summary", re.MULTILINE | re.IGNORECASE),
+        # Review summary
+        re.compile(r"^##\s*Review\s+Summary", re.MULTILINE | re.IGNORECASE),
+        # File summary table pattern (CodeRabbit specific)
+        re.compile(r"\|\s*File\s*\|\s*Changes\s*\|", re.IGNORECASE),
+        # Sequence diagram indicators
+        re.compile(r"```mermaid", re.IGNORECASE),
+        # PR Objectives section
+        re.compile(r"^##\s*Objectives", re.MULTILINE | re.IGNORECASE),
+    ]
+
+    # Tip/info box patterns (non-actionable)
+    TIP_PATTERNS = [
+        re.compile(r"^>\s*\[!TIP\]", re.MULTILINE),
+        re.compile(r"^>\s*\[!NOTE\]", re.MULTILINE),
+        re.compile(r"^>\s*\[!INFO\]", re.MULTILINE),
+    ]
 
     @property
     def reviewer_type(self) -> ReviewerType:
@@ -123,7 +154,9 @@ class CodeRabbitParser(ReviewerParser):
             6. Trivial severity -> NON_ACTIONABLE, TRIVIAL
             7. Nitpick marker -> NON_ACTIONABLE, TRIVIAL
             8. Outside diff range -> ACTIONABLE, MINOR
-            9. All other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+            9. Summary/walkthrough sections -> NON_ACTIONABLE
+            10. Tip/info boxes -> NON_ACTIONABLE
+            11. All other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
 
         Args:
             comment: Dictionary containing comment data with 'body' key.
@@ -169,5 +202,48 @@ class CodeRabbitParser(ReviewerParser):
         if self.OUTSIDE_DIFF_PATTERN.search(body):
             return (CommentClassification.ACTIONABLE, Priority.MINOR, False)
 
+        # Check for summary/walkthrough sections (non-actionable informational)
+        if self._is_summary_content(body):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
+        # Check for tip/info boxes (non-actionable)
+        if self._is_tip_content(body):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
         # Default: AMBIGUOUS - requires investigation
         return (CommentClassification.AMBIGUOUS, Priority.UNKNOWN, True)
+
+    def _is_summary_content(self, body: str) -> bool:
+        """Check if the body is a summary/walkthrough section.
+
+        Summary sections are informational overviews that don't require
+        specific action. They include walkthroughs, change summaries,
+        and file tables.
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            True if the body appears to be a summary section.
+        """
+        for pattern in self.SUMMARY_PATTERNS:
+            if pattern.search(body):
+                return True
+        return False
+
+    def _is_tip_content(self, body: str) -> bool:
+        """Check if the body is a tip/info box.
+
+        Tip boxes are informational callouts that provide helpful
+        context but don't require action.
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            True if the body appears to be a tip/info box.
+        """
+        for pattern in self.TIP_PATTERNS:
+            if pattern.search(body):
+                return True
+        return False

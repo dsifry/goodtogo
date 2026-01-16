@@ -12,6 +12,7 @@ Classification rules (per design spec):
 - "Actionable comments posted: 0" -> NON_ACTIONABLE
 - "Actionable comments posted: N" (N > 0) -> ACTIONABLE, MINOR
 - Review summary only -> NON_ACTIONABLE
+- Severity markers (**logic:**, **bug:**, **security:**) -> ACTIONABLE with priority
 - Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
 """
 
@@ -44,6 +45,23 @@ class GreptileParser(ReviewerParser):
     REVIEW_SUMMARY_PATTERNS = [
         re.compile(r"^#+\s*(Summary|Review Summary|PR Summary)", re.MULTILINE),
         re.compile(r"(reviewed|analyzed)\s+(this\s+)?(PR|pull\s+request)", re.IGNORECASE),
+    ]
+
+    # Severity marker patterns for Greptile inline comments
+    # Format: **category:** description (e.g., **logic:** The function...)
+    # These patterns indicate specific issues found by Greptile
+    SEVERITY_PATTERNS: list[tuple[re.Pattern[str], Priority]] = [
+        # Critical severity markers (security, bug, error)
+        (re.compile(r"\*\*security[:\s]", re.IGNORECASE), Priority.CRITICAL),
+        (re.compile(r"\*\*bug[:\s]", re.IGNORECASE), Priority.MAJOR),
+        (re.compile(r"\*\*error[:\s]", re.IGNORECASE), Priority.MAJOR),
+        # Medium severity markers (logic, performance)
+        (re.compile(r"\*\*logic[:\s]", re.IGNORECASE), Priority.MINOR),
+        (re.compile(r"\*\*performance[:\s]", re.IGNORECASE), Priority.MINOR),
+        # Lower severity markers (style, typo, suggestion)
+        (re.compile(r"\*\*style[:\s]", re.IGNORECASE), Priority.TRIVIAL),
+        (re.compile(r"\*\*typo[:\s]", re.IGNORECASE), Priority.TRIVIAL),
+        (re.compile(r"\*\*nitpick[:\s]", re.IGNORECASE), Priority.TRIVIAL),
     ]
 
     @property
@@ -86,7 +104,8 @@ class GreptileParser(ReviewerParser):
         1. "Actionable comments posted: 0" -> NON_ACTIONABLE
         2. "Actionable comments posted: N" (N > 0) -> ACTIONABLE, MINOR
         3. Review summary only -> NON_ACTIONABLE
-        4. Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+        4. Severity markers (**logic:**, **bug:**) -> ACTIONABLE with priority
+        5. Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
 
         Args:
             comment: Dictionary containing comment data with at least:
@@ -116,6 +135,11 @@ class GreptileParser(ReviewerParser):
         if self._is_review_summary(body):
             return CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False
 
+        # Check for severity markers (**logic:**, **bug:**, etc.)
+        severity_result = self._check_severity_markers(body)
+        if severity_result is not None:
+            return severity_result
+
         # Default: AMBIGUOUS - cannot determine classification
         # Per design spec: AMBIGUOUS comments MUST have requires_investigation=True
         return CommentClassification.AMBIGUOUS, Priority.UNKNOWN, True
@@ -136,3 +160,29 @@ class GreptileParser(ReviewerParser):
             if pattern.search(body):
                 return True
         return False
+
+    def _check_severity_markers(
+        self, body: str
+    ) -> tuple[CommentClassification, Priority, bool] | None:
+        """Check for Greptile severity markers in the comment body.
+
+        Greptile uses **category:** format to indicate the type and
+        severity of issues found. For example:
+        - **logic:** indicates a logic error
+        - **security:** indicates a security issue
+        - **bug:** indicates a bug
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            Tuple of (classification, priority, requires_investigation) if a
+            severity marker is found, None otherwise.
+        """
+        for pattern, priority in self.SEVERITY_PATTERNS:
+            if pattern.search(body):
+                # Trivial priority markers are non-actionable
+                if priority == Priority.TRIVIAL:
+                    return CommentClassification.NON_ACTIONABLE, priority, False
+                return CommentClassification.ACTIONABLE, priority, False
+        return None
