@@ -28,7 +28,8 @@ from typing import Any, Optional
 from goodtogo.adapters.cache_memory import InMemoryCacheAdapter
 from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
 from goodtogo.adapters.github import GitHubAdapter
-from goodtogo.core.interfaces import CachePort, GitHubPort, ReviewerParser
+from goodtogo.adapters.time_provider import MockTimeProvider, SystemTimeProvider
+from goodtogo.core.interfaces import CachePort, GitHubPort, ReviewerParser, TimeProvider
 from goodtogo.core.models import ReviewerType
 from goodtogo.parsers.claude import ClaudeCodeParser
 from goodtogo.parsers.coderabbit import CodeRabbitParser
@@ -124,6 +125,7 @@ class Container:
         github: GitHub API adapter implementing GitHubPort interface.
         cache: Cache adapter implementing CachePort interface.
         parsers: Dictionary mapping ReviewerType to parser implementations.
+        time_provider: TimeProvider for time operations (enables deterministic testing).
 
     Example:
         # Create production container
@@ -139,6 +141,7 @@ class Container:
     github: GitHubPort
     cache: CachePort
     parsers: dict[ReviewerType, ReviewerParser]
+    time_provider: TimeProvider
 
     @classmethod
     def create_default(
@@ -175,10 +178,12 @@ class Container:
                        or if cache_type is unknown.
         """
         cache = _create_cache(cache_type, cache_path, redis_url)
+        time_provider = SystemTimeProvider()
         return cls(
             github=GitHubAdapter(token=github_token),
             cache=cache,
             parsers=_create_default_parsers(),
+            time_provider=time_provider,
         )
 
     @classmethod
@@ -186,12 +191,14 @@ class Container:
         cls,
         github: Optional[GitHubPort] = None,
         cache: Optional[CachePort] = None,
+        time_provider: Optional[TimeProvider] = None,
     ) -> Container:
         """Factory for tests - all mocks by default.
 
         Creates a Container suitable for testing with mock adapters:
         - MockGitHubAdapter that raises NotImplementedError (override as needed)
         - InMemoryCacheAdapter for fast, ephemeral caching
+        - MockTimeProvider for deterministic time control
         - All default reviewer parsers
 
         Args:
@@ -199,6 +206,8 @@ class Container:
                    If None, uses MockGitHubAdapter.
             cache: Optional CachePort implementation to use instead of mock.
                   If None, uses InMemoryCacheAdapter.
+            time_provider: Optional TimeProvider implementation. If None, uses
+                          MockTimeProvider starting at time 0.
 
         Returns:
             Container instance configured for testing.
@@ -211,11 +220,17 @@ class Container:
             mock_github = MagicMock(spec=GitHubPort)
             mock_github.get_pr.return_value = {"number": 123, "title": "Test"}
             container = Container.create_for_testing(github=mock_github)
+
+            # With controlled time
+            time = MockTimeProvider(start=1000.0)
+            container = Container.create_for_testing(time_provider=time)
+            time.advance(60)  # Advance 60 seconds instantly
         """
         return cls(
             github=github if github is not None else MockGitHubAdapter(),
             cache=cache if cache is not None else InMemoryCacheAdapter(),
             parsers=_create_default_parsers(),
+            time_provider=time_provider if time_provider is not None else MockTimeProvider(),
         )
 
 

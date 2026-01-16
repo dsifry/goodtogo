@@ -15,12 +15,12 @@ from __future__ import annotations
 
 import sqlite3
 import stat
-import time
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from goodtogo.core.interfaces import CachePort
+from goodtogo.adapters.time_provider import SystemTimeProvider
+from goodtogo.core.interfaces import CachePort, TimeProvider
 
 if TYPE_CHECKING:
     from goodtogo.core.models import CacheStats
@@ -70,7 +70,7 @@ class SqliteCacheAdapter(CachePort):
         db_path: Path to the SQLite database file.
     """
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, time_provider: Optional[TimeProvider] = None) -> None:
         """Initialize the SQLite cache adapter.
 
         Creates the cache directory and database file with secure permissions
@@ -80,11 +80,14 @@ class SqliteCacheAdapter(CachePort):
         Args:
             db_path: Path to the SQLite database file. Parent directories
                     will be created if they don't exist.
+            time_provider: Optional TimeProvider for time operations.
+                          Defaults to SystemTimeProvider if not provided.
 
         Raises:
             OSError: If unable to create directory or set permissions.
         """
         self.db_path = db_path
+        self._time_provider = time_provider or SystemTimeProvider()
         self._connection: Optional[sqlite3.Connection] = None
         self._ensure_secure_path()
         self._init_database()
@@ -160,7 +163,7 @@ class SqliteCacheAdapter(CachePort):
             Cached value as string if found and not expired, None otherwise.
         """
         conn = self._get_connection()
-        current_time = int(time.time())
+        current_time = self._time_provider.now_int()
 
         cursor = conn.execute(
             "SELECT value FROM pr_cache WHERE key = ? AND expires_at > ?",
@@ -192,7 +195,7 @@ class SqliteCacheAdapter(CachePort):
                         the entry is considered expired.
         """
         conn = self._get_connection()
-        current_time = int(time.time())
+        current_time = self._time_provider.now_int()
         expires_at = current_time + ttl_seconds
 
         conn.execute(
@@ -250,7 +253,7 @@ class SqliteCacheAdapter(CachePort):
         periodically to prevent unbounded cache growth.
         """
         conn = self._get_connection()
-        current_time = int(time.time())
+        current_time = self._time_provider.now_int()
         conn.execute("DELETE FROM pr_cache WHERE expires_at <= ?", (current_time,))
         conn.commit()
 

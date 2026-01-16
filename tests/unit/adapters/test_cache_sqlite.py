@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import stat
 import tempfile
-import time
 import warnings
 from pathlib import Path
 from unittest.mock import patch
@@ -24,6 +23,7 @@ from unittest.mock import patch
 import pytest
 
 from goodtogo.adapters.cache_sqlite import SqliteCacheAdapter
+from goodtogo.adapters.time_provider import MockTimeProvider
 from goodtogo.core.models import CacheStats
 
 
@@ -286,14 +286,15 @@ class TestSqliteCacheAdapterCleanupExpired:
         """cleanup_expired should remove all expired entries."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
-            adapter = SqliteCacheAdapter(db_path)
+            time_provider = MockTimeProvider(start=1000.0)
+            adapter = SqliteCacheAdapter(db_path, time_provider=time_provider)
 
             # Add entry with very short TTL
             adapter.set("expired", "value", ttl_seconds=1)
             adapter.set("valid", "value", ttl_seconds=3600)
 
-            # Wait for expiration
-            time.sleep(1.1)
+            # Advance time past expiration (instant, no real waiting)
+            time_provider.advance(2)
 
             adapter.cleanup_expired()
 
@@ -307,7 +308,8 @@ class TestSqliteCacheAdapterCleanupExpired:
         """cleanup_expired should not remove entries that haven't expired."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
-            adapter = SqliteCacheAdapter(db_path)
+            time_provider = MockTimeProvider(start=1000.0)
+            adapter = SqliteCacheAdapter(db_path, time_provider=time_provider)
 
             adapter.set("key1", "value1", ttl_seconds=3600)
             adapter.set("key2", "value2", ttl_seconds=3600)
@@ -322,7 +324,8 @@ class TestSqliteCacheAdapterCleanupExpired:
         """cleanup_expired on empty database should not error."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
-            adapter = SqliteCacheAdapter(db_path)
+            time_provider = MockTimeProvider(start=1000.0)
+            adapter = SqliteCacheAdapter(db_path, time_provider=time_provider)
 
             # Should not raise
             adapter.cleanup_expired()
@@ -474,12 +477,13 @@ class TestSqliteCacheAdapterExpiration:
         """Getting an expired entry should return None."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
-            adapter = SqliteCacheAdapter(db_path)
+            time_provider = MockTimeProvider(start=1000.0)
+            adapter = SqliteCacheAdapter(db_path, time_provider=time_provider)
 
             adapter.set("key1", "value1", ttl_seconds=1)
 
-            # Wait for expiration
-            time.sleep(1.1)
+            # Advance time past expiration (instant, no real waiting)
+            time_provider.advance(2)
 
             result = adapter.get("key1")
             assert result is None
@@ -489,12 +493,14 @@ class TestSqliteCacheAdapterExpiration:
         """Getting an expired entry should increment miss counter."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "cache.db")
-            adapter = SqliteCacheAdapter(db_path)
+            time_provider = MockTimeProvider(start=1000.0)
+            adapter = SqliteCacheAdapter(db_path, time_provider=time_provider)
 
             adapter.set("key1", "value1", ttl_seconds=1)
             adapter.get("key1")  # Hit (not expired yet)
 
-            time.sleep(1.1)
+            # Advance time past expiration (instant, no real waiting)
+            time_provider.advance(2)
             adapter.get("key1")  # Miss (expired)
 
             stats = adapter.get_stats()

@@ -13,11 +13,11 @@ for tracking agent actions across sessions. Tests cover:
 import os
 import stat
 import tempfile
-import time
 from pathlib import Path
 from unittest.mock import patch
 
 from goodtogo.adapters.agent_state import ActionType, AgentAction, AgentState
+from goodtogo.adapters.time_provider import MockTimeProvider
 
 
 class TestAgentStateInit:
@@ -314,20 +314,24 @@ class TestGetActionsForPR:
         """Test that actions are ordered by created_at timestamp."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "state.db")
-            state = AgentState(db_path)
+            time_provider = MockTimeProvider(start=1000)
+            state = AgentState(db_path, time_provider=time_provider)
 
-            # Add delay to ensure different timestamps
+            # Use time_provider.advance() to ensure different timestamps
             state.mark_comment_responded("owner/repo:123", "c1", "r1")
-            time.sleep(0.01)
+            time_provider.advance(1)
             state.mark_thread_resolved("owner/repo:123", "t1")
-            time.sleep(0.01)
+            time_provider.advance(1)
             state.mark_comment_addressed("owner/repo:123", "c2", "sha1")
 
             result = state.get_actions_for_pr("owner/repo:123")
 
-            # Verify ordering by timestamp
+            # Verify ordering by timestamp - must be strictly increasing
             assert len(result) == 3
-            assert result[0].created_at <= result[1].created_at <= result[2].created_at
+            assert result[0].created_at < result[1].created_at < result[2].created_at
+            assert result[0].created_at == 1000
+            assert result[1].created_at == 1001
+            assert result[2].created_at == 1002
             state.close()
 
     def test_get_actions_for_pr_isolates_by_pr(self) -> None:
