@@ -12,10 +12,8 @@ Coverage target: 100% coverage on cache_memory.py
 
 from __future__ import annotations
 
-import time
-from unittest.mock import patch
-
 from goodtogo.adapters.cache_memory import CacheEntry, InMemoryCacheAdapter
+from goodtogo.adapters.time_provider import MockTimeProvider
 from goodtogo.core.models import CacheStats
 
 
@@ -77,7 +75,8 @@ class TestInMemoryCacheAdapterExpiration:
 
     def test_expired_entry_returns_none(self) -> None:
         """Getting an expired entry should return None and remove it."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
 
         # Set with a very short TTL
         cache.set("key1", "value1", ttl_seconds=1)
@@ -85,17 +84,16 @@ class TestInMemoryCacheAdapterExpiration:
         # Verify it's there initially
         assert cache.get("key1") == "value1"
 
-        # Wait for expiration (or mock time)
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            # First call is during set, second is during get
-            mock_time.time.return_value = time.time() + 2  # 2 seconds in future
-            result = cache.get("key1")
+        # Advance time past expiration
+        time_provider.advance(2)
+        result = cache.get("key1")
 
         assert result is None
 
     def test_expired_entry_increments_misses(self) -> None:
         """Getting an expired entry should increment the miss counter."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
         cache.set("key1", "value1", ttl_seconds=1)
 
         # First get (should be a hit)
@@ -104,23 +102,23 @@ class TestInMemoryCacheAdapterExpiration:
         assert stats_before.hits == 1
         assert stats_before.misses == 0
 
-        # Expire the entry using mock
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            mock_time.time.return_value = time.time() + 2
-            cache.get("key1")
+        # Advance time past expiration
+        time_provider.advance(2)
+        cache.get("key1")
 
         stats_after = cache.get_stats()
         assert stats_after.misses == 1  # Now incremented
 
     def test_expired_entry_is_deleted(self) -> None:
         """Accessing an expired entry should remove it from the store."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
         cache.set("key1", "value1", ttl_seconds=1)
         assert len(cache) == 1
 
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            mock_time.time.return_value = time.time() + 2
-            cache.get("key1")
+        # Advance time past expiration and access
+        time_provider.advance(2)
+        cache.get("key1")
 
         # Entry should be removed after expired get
         assert len(cache) == 0
@@ -213,29 +211,27 @@ class TestInMemoryCacheAdapterCleanupExpired:
 
     def test_cleanup_expired_removes_expired_entries(self) -> None:
         """cleanup_expired should remove all expired entries."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
 
         # Add entries with different TTLs
-        current_time = time.time()
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            mock_time.time.return_value = current_time
-            cache.set("expired1", "value1", ttl_seconds=1)
-            cache.set("expired2", "value2", ttl_seconds=2)
-            cache.set("valid", "value3", ttl_seconds=3600)
+        cache.set("expired1", "value1", ttl_seconds=1)
+        cache.set("expired2", "value2", ttl_seconds=2)
+        cache.set("valid", "value3", ttl_seconds=3600)
 
         assert len(cache) == 3
 
         # Advance time by 3 seconds
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            mock_time.time.return_value = current_time + 3
-            cache.cleanup_expired()
+        time_provider.advance(3)
+        cache.cleanup_expired()
 
         # Only valid entry should remain
         assert len(cache) == 1
 
     def test_cleanup_expired_preserves_valid_entries(self) -> None:
         """cleanup_expired should not remove entries that haven't expired."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
         cache.set("key1", "value1", ttl_seconds=3600)
         cache.set("key2", "value2", ttl_seconds=3600)
 
@@ -246,7 +242,8 @@ class TestInMemoryCacheAdapterCleanupExpired:
 
     def test_cleanup_expired_on_empty_cache(self) -> None:
         """cleanup_expired on empty cache should not error."""
-        cache = InMemoryCacheAdapter()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
         cache.cleanup_expired()
         assert len(cache) == 0
 
@@ -310,12 +307,13 @@ class TestInMemoryCacheAdapterLen:
 
     def test_len_includes_potentially_expired(self) -> None:
         """len() should include expired entries that haven't been cleaned."""
-        cache = InMemoryCacheAdapter()
-        current_time = time.time()
+        time_provider = MockTimeProvider(start=1000.0)
+        cache = InMemoryCacheAdapter(time_provider=time_provider)
 
-        with patch("goodtogo.adapters.cache_memory.time") as mock_time:
-            mock_time.time.return_value = current_time
-            cache.set("expired", "value", ttl_seconds=1)
+        cache.set("expired", "value", ttl_seconds=1)
+
+        # Advance time past expiration but don't access the entry
+        time_provider.advance(2)
 
         # Entry is expired but not yet cleaned
         # len() still counts it

@@ -13,7 +13,6 @@ Coverage target: 100% coverage on github.py
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -24,6 +23,7 @@ from goodtogo.adapters.github import (
     GitHubAPIError,
     GitHubRateLimitError,
 )
+from goodtogo.adapters.time_provider import MockTimeProvider
 
 
 class TestGitHubRateLimitError:
@@ -77,6 +77,19 @@ class TestGitHubAdapterInit:
         assert adapter._client is not None
         assert "Bearer ghp_test123" in adapter._client.headers.get("Authorization", "")
 
+    def test_init_uses_default_time_provider(self) -> None:
+        """Init should use SystemTimeProvider by default."""
+        from goodtogo.adapters.time_provider import SystemTimeProvider
+
+        adapter = GitHubAdapter(token="ghp_test123")
+        assert isinstance(adapter._time_provider, SystemTimeProvider)
+
+    def test_init_accepts_custom_time_provider(self) -> None:
+        """Init should accept a custom TimeProvider."""
+        time_provider = MockTimeProvider(start=1000.0)
+        adapter = GitHubAdapter(token="ghp_test123", time_provider=time_provider)
+        assert adapter._time_provider is time_provider
+
 
 class TestGitHubAdapterRepr:
     """Tests for __repr__ and __str__ (token redaction)."""
@@ -124,9 +137,9 @@ class TestGitHubAdapterHandleResponse:
 
     def test_handle_response_rate_limit_403(self) -> None:
         """_handle_response should raise GitHubRateLimitError on 403 with remaining=0."""
-        adapter = GitHubAdapter(token="ghp_test123")
-        current_time = int(time.time())
-        reset_time = current_time + 60
+        time_provider = MockTimeProvider(start=1000.0)
+        adapter = GitHubAdapter(token="ghp_test123", time_provider=time_provider)
+        reset_time = 1060  # 60 seconds from now
 
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 403
@@ -139,11 +152,12 @@ class TestGitHubAdapterHandleResponse:
             adapter._handle_response(mock_response)
 
         assert exc_info.value.reset_at == reset_time
-        assert exc_info.value.retry_after >= 0
+        assert exc_info.value.retry_after == 60  # Deterministic: 1060 - 1000 = 60
 
     def test_handle_response_rate_limit_429(self) -> None:
         """_handle_response should raise GitHubRateLimitError on 429."""
-        adapter = GitHubAdapter(token="ghp_test123")
+        time_provider = MockTimeProvider(start=1000.0)
+        adapter = GitHubAdapter(token="ghp_test123", time_provider=time_provider)
 
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 429
@@ -153,6 +167,7 @@ class TestGitHubAdapterHandleResponse:
             adapter._handle_response(mock_response)
 
         assert exc_info.value.retry_after == 120
+        assert exc_info.value.reset_at == 1120  # Deterministic: 1000 + 120 = 1120
 
     def test_handle_response_api_error(self) -> None:
         """_handle_response should raise GitHubAPIError on 4xx/5xx."""
@@ -760,9 +775,9 @@ class TestGitHubAdapterIntegration:
 
     def test_rate_limit_recovery_scenario(self) -> None:
         """Test that rate limit errors contain actionable information."""
-        adapter = GitHubAdapter(token="ghp_test123")
-        current_time = int(time.time())
-        reset_time = current_time + 3600
+        time_provider = MockTimeProvider(start=1000.0)
+        adapter = GitHubAdapter(token="ghp_test123", time_provider=time_provider)
+        reset_time = 4600  # 3600 seconds from now (1000 + 3600)
 
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 403
@@ -777,4 +792,4 @@ class TestGitHubAdapterIntegration:
 
         # Should have enough info to implement retry logic
         assert exc_info.value.reset_at == reset_time
-        assert exc_info.value.retry_after > 0
+        assert exc_info.value.retry_after == 3600  # Deterministic: 4600 - 1000 = 3600
