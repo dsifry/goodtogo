@@ -42,8 +42,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install goodtogo
-        run: pip install goodtogo
+      - name: Install gtg
+        run: pip install gtg
 
       - name: Run gtg check
         id: gtg
