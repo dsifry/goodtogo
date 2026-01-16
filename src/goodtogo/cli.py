@@ -77,6 +77,12 @@ EXIT_CODES: dict[PRStatus, int] = {
     is_flag=True,
     help="Verbose output",
 )
+@click.option(
+    "--exclude-checks",
+    "-x",
+    multiple=True,
+    help="CI check names to exclude (can be repeated)",
+)
 @click.version_option(version=__version__)
 def main(
     pr_number: int,
@@ -86,6 +92,7 @@ def main(
     redis_url: Optional[str],
     output_format: str,
     verbose: bool,
+    exclude_checks: tuple[str, ...],
 ) -> None:
     """Check if a PR is ready to merge.
 
@@ -120,7 +127,7 @@ def main(
             redis_url=redis_url,
         )
         analyzer = PRAnalyzer(container)
-        result = analyzer.analyze(owner, repo_name, pr_number)
+        result = analyzer.analyze(owner, repo_name, pr_number, exclude_checks=set(exclude_checks))
     except Exception as e:
         # Redact sensitive data from error messages
         redacted = redact_error(e)
