@@ -27,7 +27,7 @@ Good To Go needs a GitHub token to access PR data.
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-gtm 123 --repo owner/repo
+gtg 123 --repo owner/repo
 ```
 
 Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` flag for security reasons.
@@ -41,12 +41,12 @@ Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` f
 
 ## Commands
 
-### `gtm`
+### `gtg`
 
 Check if a PR is ready to merge.
 
 ```bash
-gtm <pr_number> --repo <owner/repo> [OPTIONS]
+gtg <pr_number> --repo <owner/repo> [OPTIONS]
 ```
 
 #### Arguments
@@ -71,19 +71,19 @@ gtm <pr_number> --repo <owner/repo> [OPTIONS]
 
 ```bash
 # Basic check (JSON output by default)
-gtm 123 --repo myorg/myrepo
+gtg 123 --repo myorg/myrepo
 
 # Human-readable text output
-gtm 123 --repo myorg/myrepo --format text
+gtg 123 --repo myorg/myrepo --format text
 
 # Verbose output (shows ambiguous comments)
-gtm 123 --repo myorg/myrepo --format text --verbose
+gtg 123 --repo myorg/myrepo --format text --verbose
 
 # Disable caching
-gtm 123 --repo myorg/myrepo --cache none
+gtg 123 --repo myorg/myrepo --cache none
 
 # Use Redis cache
-gtm 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
+gtg 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
 ```
 
 ## Exit Codes
@@ -101,7 +101,7 @@ Good To Go uses exit codes for deterministic status reporting:
 ### Using Exit Codes in Scripts
 
 ```bash
-gtm 123 --repo owner/repo
+gtg 123 --repo owner/repo
 case $? in
   0) echo "Ready to merge!" ;;
   1) echo "Comments need attention" ;;
@@ -116,7 +116,7 @@ esac
 With `--format text`, Good To Go outputs human-readable status information:
 
 ```bash
-gtm 123 --repo myorg/myrepo --format text
+gtg 123 --repo myorg/myrepo --format text
 ```
 
 ### Status Icons
@@ -184,7 +184,7 @@ Action required:
 With `--verbose`, the text output also shows ambiguous comments that may need investigation:
 
 ```bash
-gtm 123 --repo myorg/myrepo --format text --verbose
+gtg 123 --repo myorg/myrepo --format text --verbose
 ```
 
 ```

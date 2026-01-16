@@ -20,7 +20,7 @@ Without deterministic answers, agents either wait too long, miss comments, or ke
 Good To Go provides **deterministic PR state analysis** via a simple CLI:
 
 ```bash
-gtm 123 --repo owner/repo
+gtg 123 --repo owner/repo
 ```
 
 Returns:
@@ -44,13 +44,13 @@ That's it. No other dependencies required.
 
 ```bash
 # Check if PR #123 in myorg/myrepo is ready to merge
-gtm 123 --repo myorg/myrepo
+gtg 123 --repo myorg/myrepo
 
 # With JSON output for programmatic use
-gtm 123 --repo myorg/myrepo --format json
+gtg 123 --repo myorg/myrepo --format json
 
 # Human-readable text format
-gtm 123 --repo myorg/myrepo --format text
+gtg 123 --repo myorg/myrepo --format text
 ```
 
 ### Authentication
@@ -128,7 +128,7 @@ Action required:
 ### JSON Output
 
 ```bash
-gtm 123 --repo myorg/myrepo --format json
+gtg 123 --repo myorg/myrepo --format json
 ```
 
 Returns structured data including:
@@ -158,7 +158,7 @@ import subprocess
 import json
 
 result = subprocess.run(
-    ["gtm", "123", "--repo", "owner/repo", "--format", "json"],
+    ["gtg", "123", "--repo", "owner/repo", "--format", "json"],
     capture_output=True,
     text=True
 )
