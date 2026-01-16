@@ -26,7 +26,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e  # Don't exit on non-zero
-          gtg check ${{ github.repository }} ${{ github.event.pull_request.number }} --json > gtg-result.json
+          gtg ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --format json > gtg-result.json
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
