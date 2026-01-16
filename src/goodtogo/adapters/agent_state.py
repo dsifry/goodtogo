@@ -127,9 +127,10 @@ class AgentState:
         db_dir = path.parent
 
         # Create directory with secure permissions if needed
-        if db_dir and not db_dir.exists():
+        # Skip permission modification for current directory (db_path has no dir component)
+        if db_dir and db_dir != Path(".") and not db_dir.exists():
             db_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
-        elif db_dir and db_dir.exists():  # pragma: no branch
+        elif db_dir and db_dir != Path(".") and db_dir.exists():  # pragma: no branch
             # Ensure existing directory has correct permissions
             current_mode = stat.S_IMODE(db_dir.stat().st_mode)
             if current_mode != 0o700:
@@ -224,11 +225,15 @@ class AgentState:
         conn = self._get_connection()
         current_time = self._time_provider.now_int()
 
+        # Use ON CONFLICT to preserve original created_at timestamp
+        # Only update result_id when re-recording the same action
         conn.execute(
             """
-            INSERT OR REPLACE INTO agent_actions
+            INSERT INTO agent_actions
             (pr_key, action_type, target_id, result_id, created_at)
             VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(pr_key, action_type, target_id) DO UPDATE SET
+                result_id = excluded.result_id
             """,
             (pr_key, action_type.value, target_id, result_id, current_time),
         )

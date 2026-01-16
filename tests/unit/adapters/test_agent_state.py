@@ -63,7 +63,9 @@ class TestAgentStateInit:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "state.db")
             # Create file with permissive permissions
-            Path(db_path).touch(mode=0o644)
+            # Note: Must use os.chmod after touch because Path.touch(mode=) is masked by umask
+            Path(db_path).touch()
+            os.chmod(db_path, 0o644)
 
             import warnings
 

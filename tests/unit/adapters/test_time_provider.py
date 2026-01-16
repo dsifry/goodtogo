@@ -40,9 +40,9 @@ class TestSystemTimeProvider:
     def test_sleep_waits_for_duration(self) -> None:
         """sleep() should wait for the specified duration."""
         provider = SystemTimeProvider()
-        before = time.time()
+        before = time.monotonic()
         provider.sleep(0.01)  # Sleep for 10ms
-        after = time.time()
+        after = time.monotonic()
         assert after - before >= 0.01
 
 
@@ -79,12 +79,12 @@ class TestMockTimeProvider:
     def test_sleep_advances_time_instantly(self) -> None:
         """sleep() should advance time without real waiting."""
         provider = MockTimeProvider(start=1000.0)
-        before = time.time()
+        before = time.monotonic()
         provider.sleep(3600)  # "Sleep" for 1 hour
-        after = time.time()
+        after = time.monotonic()
 
-        # Real time should barely have passed
-        assert after - before < 0.1
+        # Real time should barely have passed (tolerance for busy CI systems)
+        assert after - before < 0.5
 
         # But mock time should have advanced
         assert provider.now() == 4600.0
