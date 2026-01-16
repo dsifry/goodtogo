@@ -10,12 +10,12 @@ statistics for performance monitoring.
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from typing import Optional
 
-from goodtogo.core.interfaces import CachePort
+from goodtogo.adapters.time_provider import SystemTimeProvider
+from goodtogo.core.interfaces import CachePort, TimeProvider
 from goodtogo.core.models import CacheStats
 
 
@@ -57,11 +57,17 @@ class InMemoryCacheAdapter(CachePort):
         _misses: Counter for cache misses.
     """
 
-    def __init__(self) -> None:
-        """Initialize an empty in-memory cache."""
+    def __init__(self, time_provider: Optional[TimeProvider] = None) -> None:
+        """Initialize an empty in-memory cache.
+
+        Args:
+            time_provider: TimeProvider for getting current time.
+                          Defaults to SystemTimeProvider if not provided.
+        """
         self._store: dict[str, CacheEntry] = {}
         self._hits: int = 0
         self._misses: int = 0
+        self._time_provider: TimeProvider = time_provider or SystemTimeProvider()
 
     def get(self, key: str) -> Optional[str]:
         """Get cached value if it exists and has not expired.
@@ -84,7 +90,7 @@ class InMemoryCacheAdapter(CachePort):
             return None
 
         # Check if entry has expired
-        if entry.expires_at <= time.time():
+        if entry.expires_at <= self._time_provider.now():
             # Remove expired entry
             del self._store[key]
             self._misses += 1
@@ -105,7 +111,7 @@ class InMemoryCacheAdapter(CachePort):
             ttl_seconds: Time to live in seconds. The entry will be
                         considered expired after this duration.
         """
-        expires_at = time.time() + ttl_seconds
+        expires_at = self._time_provider.now() + ttl_seconds
         self._store[key] = CacheEntry(value=value, expires_at=expires_at)
 
     def delete(self, key: str) -> None:
@@ -147,7 +153,7 @@ class InMemoryCacheAdapter(CachePort):
         expired. This should be called periodically to prevent unbounded
         memory growth from accumulated expired entries.
         """
-        current_time = time.time()
+        current_time = self._time_provider.now()
 
         # Collect expired keys (avoid modifying dict during iteration)
         expired_keys = [
