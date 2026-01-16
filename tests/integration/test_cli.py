@@ -178,7 +178,9 @@ class TestJsonOutput:
                     CICheck(name="test", status="success", conclusion="success", url=None),
                 ],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],
@@ -298,7 +300,9 @@ class TestTextOutput:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=5, resolved=5, unresolved=0, outdated=1),
+            threads=ThreadSummary(
+                total=5, resolved=5, unresolved=0, outdated=1, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],
@@ -325,7 +329,9 @@ class TestTextOutput:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[
                 Comment(
@@ -343,6 +349,7 @@ class TestTextOutput:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 )
             ],
             ambiguous_comments=[],
@@ -487,7 +494,9 @@ class TestExitCodes:
                     pending=0,
                     checks=[],
                 ),
-                threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+                threads=ThreadSummary(
+                    total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+                ),
                 comments=[],
                 actionable_comments=[],
                 ambiguous_comments=[],
@@ -655,7 +664,9 @@ class TestCacheOptions:
                         pending=0,
                         checks=[],
                     ),
-                    threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+                    threads=ThreadSummary(
+                        total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+                    ),
                     comments=[],
                     actionable_comments=[],
                     ambiguous_comments=[],
@@ -715,7 +726,9 @@ class TestVerboseAmbiguousComments:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[
                 Comment(
                     id="1",
@@ -732,6 +745,7 @@ class TestVerboseAmbiguousComments:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
                 Comment(
                     id="2",
@@ -751,6 +765,7 @@ class TestVerboseAmbiguousComments:
                     line_number=100,
                     created_at="2024-01-15T11:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
             ],
             actionable_comments=[],
@@ -770,6 +785,7 @@ class TestVerboseAmbiguousComments:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
                 Comment(
                     id="2",
@@ -789,6 +805,7 @@ class TestVerboseAmbiguousComments:
                     line_number=100,
                     created_at="2024-01-15T11:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
             ],
             action_items=["2 comments require investigation (ambiguous)"],
@@ -890,7 +907,9 @@ class TestVerboseAmbiguousComments:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],  # Empty!

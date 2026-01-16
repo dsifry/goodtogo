@@ -181,8 +181,9 @@ def make_comment():
         line: int | None = None,
         in_reply_to_id: int | None = None,
         created_at: str = "2024-01-15T10:00:00Z",
+        html_url: str | None = None,
     ) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "id": comment_id,
             "user": {"login": author},
             "body": body,
@@ -191,6 +192,9 @@ def make_comment():
             "in_reply_to_id": in_reply_to_id,
             "created_at": created_at,
         }
+        if html_url is not None:
+            result["html_url"] = html_url
+        return result
 
     return _make
 
