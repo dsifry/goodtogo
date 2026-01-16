@@ -239,6 +239,7 @@ def make_thread():
         is_outdated: bool = False,
         path: str = "src/main.py",
         line: int = 10,
+        comments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return {
             "id": thread_id,
@@ -246,6 +247,7 @@ def make_thread():
             "is_outdated": is_outdated,
             "path": path,
             "line": line,
+            "comments": comments if comments is not None else [],
         }
 
     return _make
