@@ -16,7 +16,7 @@ The analyzer follows the decision tree from the design specification:
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from goodtogo.core.errors import redact_error
 from goodtogo.core.models import (
@@ -80,7 +80,13 @@ class PRAnalyzer:
         """
         self._container = container
 
-    def analyze(self, owner: str, repo: str, pr_number: int) -> PRAnalysisResult:
+    def analyze(
+        self,
+        owner: str,
+        repo: str,
+        pr_number: int,
+        exclude_checks: Optional[set[str]] = None,
+    ) -> PRAnalysisResult:
         """Analyze a PR and determine its readiness for merge.
 
         This method orchestrates the complete PR analysis workflow:
@@ -167,7 +173,7 @@ class PRAnalyzer:
             )
 
             # Build CI status model
-            ci_status = self._build_ci_status(ci_data)
+            ci_status = self._build_ci_status(ci_data, exclude_checks or set())
 
             # Build thread summary
             threads = self._build_thread_summary(threads_data)
@@ -503,16 +509,16 @@ class PRAnalyzer:
             addressed_in_commit=None,
         )
 
-    def _build_ci_status(self, ci_data: dict[str, Any]) -> CIStatus:
+    def _build_ci_status(self, ci_data: dict[str, Any], exclude_checks: set[str]) -> CIStatus:
         """Build CIStatus model from GitHub API response.
 
         Args:
             ci_data: Dictionary from GitHub CI status API.
+            exclude_checks: Set of check names to exclude from evaluation.
 
         Returns:
             CIStatus model with aggregated check information.
         """
-        state = ci_data.get("state", "pending")
         statuses = ci_data.get("statuses", [])
         check_runs = ci_data.get("check_runs", [])
 
@@ -520,9 +526,12 @@ class PRAnalyzer:
 
         # Process status checks
         for status in statuses:
+            name = status.get("context", "unknown")
+            if name in exclude_checks:
+                continue
             checks.append(
                 CICheck(
-                    name=status.get("context", "unknown"),
+                    name=name,
                     status=status.get("state", "pending"),
                     conclusion=status.get("state"),
                     url=status.get("target_url"),
@@ -531,6 +540,10 @@ class PRAnalyzer:
 
         # Process check runs (GitHub Actions, etc.)
         for run in check_runs:
+            name = run.get("name", "unknown")
+            if name in exclude_checks:
+                continue
+
             run_status = run.get("status", "queued")
             run_conclusion = run.get("conclusion")
 
@@ -544,7 +557,7 @@ class PRAnalyzer:
 
             checks.append(
                 CICheck(
-                    name=run.get("name", "unknown"),
+                    name=name,
                     status=status_value,
                     conclusion=run_conclusion,
                     url=run.get("html_url"),
@@ -557,8 +570,19 @@ class PRAnalyzer:
         failed = sum(1 for c in checks if c.status in ("failure", "error"))
         pending = sum(1 for c in checks if c.status == "pending")
 
+        # Recalculate state based on filtered checks
+        # (can't use GitHub's state since we may have excluded checks)
+        if failed > 0:
+            computed_state = "failure"
+        elif pending > 0:
+            computed_state = "pending"
+        elif total == 0:
+            computed_state = "success"  # No checks means success
+        else:
+            computed_state = "success"
+
         return CIStatus(
-            state=state,
+            state=computed_state,
             total_checks=total,
             passed=passed,
             failed=failed,
