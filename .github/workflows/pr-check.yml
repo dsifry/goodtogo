@@ -5,7 +5,6 @@ on:
   workflow_run:
     workflows: ["Tests & Quality"]
     types: [completed]
-    branches: [main]
 
 jobs:
   gtg-check:
