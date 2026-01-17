@@ -1544,3 +1544,362 @@ class TestGetRepoFromGitOrigin:
             result = get_repo_from_git_origin()
 
         assert result is None
+
+
+# ============================================================================
+# Test: _persist_classifications function
+# ============================================================================
+
+
+class TestPersistClassifications:
+    """Tests for the _persist_classifications helper function."""
+
+    @pytest.fixture
+    def mock_agent_state(self):
+        """Create a mock AgentState."""
+        mock = MagicMock()
+        mock.is_comment_dismissed.return_value = False
+        mock.get_resolved_threads.return_value = set()
+        return mock
+
+    @pytest.fixture
+    def result_with_non_actionable_comments(self):
+        """Create a PRAnalysisResult with NON_ACTIONABLE comments."""
+        return PRAnalysisResult(
+            status=PRStatus.READY,
+            pr_number=123,
+            repo_owner="owner",
+            repo_name="repo",
+            latest_commit_sha="abc123",
+            latest_commit_timestamp="2024-01-15T10:00:00Z",
+            ci_status=CIStatus(
+                state="success",
+                total_checks=1,
+                passed=1,
+                failed=0,
+                pending=0,
+                checks=[],
+            ),
+            threads=ThreadSummary(
+                total=1, resolved=1, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
+            comments=[
+                Comment(
+                    id="comment_1",
+                    author="coderabbitai[bot]",
+                    reviewer_type=ReviewerType.CODERABBIT,
+                    body="Looks good!",
+                    classification=CommentClassification.NON_ACTIONABLE,
+                    priority=Priority.UNKNOWN,
+                    requires_investigation=False,
+                    thread_id="thread_1",
+                    is_resolved=True,
+                    is_outdated=False,
+                    file_path="src/main.py",
+                    line_number=10,
+                    created_at="2024-01-15T10:00:00Z",
+                    addressed_in_commit=None,
+                    url="https://github.com/owner/repo/pull/123#comment-1",
+                ),
+            ],
+            actionable_comments=[],
+            ambiguous_comments=[],
+            action_items=[],
+            needs_action=False,
+            cache_stats=None,
+        )
+
+    def test_persists_non_actionable_comments(
+        self, mock_agent_state, result_with_non_actionable_comments
+    ):
+        """Should dismiss NON_ACTIONABLE comments that aren't already dismissed."""
+        from goodtogo.cli import _persist_classifications
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result_with_non_actionable_comments,
+        )
+
+        # Should check if comment is dismissed
+        mock_agent_state.is_comment_dismissed.assert_called_with(
+            "owner/repo:123", "comment_1"
+        )
+        # Should dismiss the comment
+        mock_agent_state.dismiss_comment.assert_called_with(
+            "owner/repo:123", "comment_1", reason="auto:non_actionable"
+        )
+
+    def test_skips_already_dismissed_comments(
+        self, mock_agent_state, result_with_non_actionable_comments
+    ):
+        """Should not re-dismiss already dismissed comments."""
+        from goodtogo.cli import _persist_classifications
+
+        # Mark comment as already dismissed
+        mock_agent_state.is_comment_dismissed.return_value = True
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result_with_non_actionable_comments,
+        )
+
+        # Should check if comment is dismissed
+        mock_agent_state.is_comment_dismissed.assert_called()
+        # Should NOT dismiss again
+        mock_agent_state.dismiss_comment.assert_not_called()
+
+    def test_persists_resolved_threads(
+        self, mock_agent_state, result_with_non_actionable_comments
+    ):
+        """Should mark resolved threads as resolved in state."""
+        from goodtogo.cli import _persist_classifications
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result_with_non_actionable_comments,
+        )
+
+        # Should get already resolved threads
+        mock_agent_state.get_resolved_threads.assert_called_with("owner/repo:123")
+        # Should mark thread as resolved
+        mock_agent_state.mark_thread_resolved.assert_called_with(
+            "owner/repo:123", "thread_1"
+        )
+
+    def test_skips_already_resolved_threads(
+        self, mock_agent_state, result_with_non_actionable_comments
+    ):
+        """Should not re-mark already resolved threads."""
+        from goodtogo.cli import _persist_classifications
+
+        # Mark thread as already resolved
+        mock_agent_state.get_resolved_threads.return_value = {"thread_1"}
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result_with_non_actionable_comments,
+        )
+
+        # Should check resolved threads
+        mock_agent_state.get_resolved_threads.assert_called()
+        # Should NOT mark again
+        mock_agent_state.mark_thread_resolved.assert_not_called()
+
+    def test_handles_comments_without_thread_id(self, mock_agent_state):
+        """Should skip comments without thread_id when tracking resolved threads."""
+        from goodtogo.cli import _persist_classifications
+
+        result = PRAnalysisResult(
+            status=PRStatus.READY,
+            pr_number=123,
+            repo_owner="owner",
+            repo_name="repo",
+            latest_commit_sha="abc123",
+            latest_commit_timestamp="2024-01-15T10:00:00Z",
+            ci_status=CIStatus(
+                state="success",
+                total_checks=1,
+                passed=1,
+                failed=0,
+                pending=0,
+                checks=[],
+            ),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
+            comments=[
+                Comment(
+                    id="comment_1",
+                    author="coderabbitai[bot]",
+                    reviewer_type=ReviewerType.CODERABBIT,
+                    body="Looks good!",
+                    classification=CommentClassification.NON_ACTIONABLE,
+                    priority=Priority.UNKNOWN,
+                    requires_investigation=False,
+                    thread_id=None,  # No thread ID
+                    is_resolved=True,
+                    is_outdated=False,
+                    file_path="src/main.py",
+                    line_number=10,
+                    created_at="2024-01-15T10:00:00Z",
+                    addressed_in_commit=None,
+                    url="https://github.com/owner/repo/pull/123#comment-1",
+                ),
+            ],
+            actionable_comments=[],
+            ambiguous_comments=[],
+            action_items=[],
+            needs_action=False,
+            cache_stats=None,
+        )
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result,
+        )
+
+        # Should still dismiss the comment
+        mock_agent_state.dismiss_comment.assert_called()
+        # But should NOT try to mark any thread as resolved
+        mock_agent_state.mark_thread_resolved.assert_not_called()
+
+    def test_handles_unresolved_threads(self, mock_agent_state):
+        """Should not mark unresolved threads as resolved."""
+        from goodtogo.cli import _persist_classifications
+
+        result = PRAnalysisResult(
+            status=PRStatus.UNRESOLVED_THREADS,
+            pr_number=123,
+            repo_owner="owner",
+            repo_name="repo",
+            latest_commit_sha="abc123",
+            latest_commit_timestamp="2024-01-15T10:00:00Z",
+            ci_status=CIStatus(
+                state="success",
+                total_checks=1,
+                passed=1,
+                failed=0,
+                pending=0,
+                checks=[],
+            ),
+            threads=ThreadSummary(
+                total=1, resolved=0, unresolved=1, outdated=0, unresolved_threads=[]
+            ),
+            comments=[
+                Comment(
+                    id="comment_1",
+                    author="coderabbitai[bot]",
+                    reviewer_type=ReviewerType.CODERABBIT,
+                    body="Please fix this issue.",
+                    classification=CommentClassification.ACTIONABLE,
+                    priority=Priority.MAJOR,
+                    requires_investigation=False,
+                    thread_id="thread_1",
+                    is_resolved=False,  # Not resolved!
+                    is_outdated=False,
+                    file_path="src/main.py",
+                    line_number=10,
+                    created_at="2024-01-15T10:00:00Z",
+                    addressed_in_commit=None,
+                    url="https://github.com/owner/repo/pull/123#comment-1",
+                ),
+            ],
+            actionable_comments=[],
+            ambiguous_comments=[],
+            action_items=["Fix MAJOR comment in src/main.py:10"],
+            needs_action=True,
+            cache_stats=None,
+        )
+
+        _persist_classifications(
+            mock_agent_state,
+            "owner/repo:123",
+            result,
+        )
+
+        # Should NOT dismiss actionable comments
+        mock_agent_state.dismiss_comment.assert_not_called()
+        # Should NOT mark unresolved thread as resolved
+        mock_agent_state.mark_thread_resolved.assert_not_called()
+
+
+# ============================================================================
+# Test: --refresh flag
+# ============================================================================
+
+
+class TestRefreshFlag:
+    """Tests for the --refresh flag that skips state persistence."""
+
+    @pytest.fixture
+    def ready_result(self):
+        """Create a READY PRAnalysisResult."""
+        return PRAnalysisResult(
+            status=PRStatus.READY,
+            pr_number=123,
+            repo_owner="owner",
+            repo_name="repo",
+            latest_commit_sha="abc123",
+            latest_commit_timestamp="2024-01-15T10:00:00Z",
+            ci_status=CIStatus(
+                state="success",
+                total_checks=1,
+                passed=1,
+                failed=0,
+                pending=0,
+                checks=[],
+            ),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
+            comments=[],
+            actionable_comments=[],
+            ambiguous_comments=[],
+            action_items=[],
+            needs_action=False,
+            cache_stats=None,
+        )
+
+    def test_refresh_flag_skips_agent_state_creation(
+        self, cli_runner: CliRunner, ready_result: PRAnalysisResult
+    ):
+        """With --refresh, AgentState should not be created."""
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = ready_result
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                with patch("goodtogo.cli.AgentState") as mock_agent_state_cls:
+                    result = cli_runner.invoke(
+                        main,
+                        ["123", "--repo", "owner/repo", "--refresh"],
+                        env={"GITHUB_TOKEN": "ghp_test"},
+                    )
+
+                    # With --refresh, AgentState should NOT be instantiated
+                    mock_agent_state_cls.assert_not_called()
+
+        assert result.exit_code == 0
+
+    def test_without_refresh_flag_creates_agent_state(
+        self, cli_runner: CliRunner, ready_result: PRAnalysisResult
+    ):
+        """Without --refresh, AgentState should be created."""
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = ready_result
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                with patch("goodtogo.cli.AgentState") as mock_agent_state_cls:
+                    mock_agent_state = MagicMock()
+                    mock_agent_state_cls.return_value = mock_agent_state
+
+                    result = cli_runner.invoke(
+                        main,
+                        ["123", "--repo", "owner/repo"],
+                        env={"GITHUB_TOKEN": "ghp_test"},
+                    )
+
+                    # Without --refresh, AgentState SHOULD be instantiated
+                    mock_agent_state_cls.assert_called_once()
+
+        assert result.exit_code == 0
+
+    def test_help_shows_refresh_option(self, cli_runner: CliRunner):
+        """Help should show the --refresh option."""
+        result = cli_runner.invoke(main, ["--help"])
+        assert "--refresh" in result.output
+        assert "Force complete rescan" in result.output or "ignore" in result.output
