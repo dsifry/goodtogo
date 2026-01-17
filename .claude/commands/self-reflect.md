@@ -10,14 +10,17 @@ Analyze PR review comments from the past week and extract high-quality, reusable
 
 ## Step 1: Fetch PR Comments
 
-Use the GitHub CLI to fetch recent merged PRs and their review comments:
+Use the GitHub CLI to fetch merged PRs from the past week and their review comments:
 
 ```bash
-# List recent merged PRs
-gh pr list --state merged --limit 10 --json number,title,mergedAt
+# Calculate date 7 days ago (works on macOS and Linux)
+SINCE=$(date -v-7d +%Y-%m-%d 2>/dev/null || date -d '7 days ago' +%Y-%m-%d)
 
-# For each PR, fetch review comments
-for pr in $(gh pr list --state merged --limit 10 --json number -q '.[].number'); do
+# List PRs merged in the past week
+gh pr list --state merged --search "merged:>=$SINCE" --limit 20 --json number,title,mergedAt
+
+# For each PR merged in the past week, fetch review comments
+for pr in $(gh pr list --state merged --search "merged:>=$SINCE" --limit 20 --json number -q '.[].number'); do
   echo "=== PR #$pr ==="
   gh api repos/{owner}/{repo}/pulls/$pr/comments --jq '.[] | "[\(.user.login)] \(.body[0:300])"' 2>/dev/null | head -10
   gh api repos/{owner}/{repo}/pulls/$pr/reviews --jq '.[] | select(.body != "") | "[\(.user.login)] \(.body[0:500])"' 2>/dev/null | head -5
