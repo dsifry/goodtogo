@@ -1155,3 +1155,323 @@ class TestQuietMode:
         result = cli_runner.invoke(main, ["--help"])
 
         assert "--semantic-codes" in result.output
+
+
+# ============================================================================
+# Test: Auto-Detect Repository from Git Origin
+# ============================================================================
+
+
+class TestAutoDetectRepo:
+    """Tests for auto-detecting repository from git remote origin."""
+
+    @pytest.fixture
+    def mock_result(self) -> PRAnalysisResult:
+        """Create a mock READY result for testing."""
+        return PRAnalysisResult(
+            status=PRStatus.READY,
+            pr_number=123,
+            repo_owner="detected-owner",
+            repo_name="detected-repo",
+            latest_commit_sha="abc123",
+            latest_commit_timestamp="2024-01-15T10:00:00Z",
+            ci_status=CIStatus(
+                state="success",
+                total_checks=1,
+                passed=1,
+                failed=0,
+                pending=0,
+                checks=[],
+            ),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
+            comments=[],
+            actionable_comments=[],
+            ambiguous_comments=[],
+            action_items=[],
+            needs_action=False,
+            cache_stats=None,
+        )
+
+    def test_explicit_repo_takes_precedence(
+        self, cli_runner: CliRunner, mock_result: PRAnalysisResult
+    ):
+        """When --repo is provided, it should be used even if git origin exists."""
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = mock_result
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                # Even with a git origin, explicit --repo should be used
+                with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+                    mock_git.return_value = ("git-owner", "git-repo")
+
+                    result = cli_runner.invoke(
+                        main,
+                        ["123", "--repo", "explicit-owner/explicit-repo"],
+                        env={"GITHUB_TOKEN": "ghp_test"},
+                    )
+
+        assert result.exit_code == 0
+        # Verify analyze was called with explicit repo, not git origin
+        mock_analyzer.analyze.assert_called_once()
+        call_args = mock_analyzer.analyze.call_args
+        assert call_args[0][0] == "explicit-owner"
+        assert call_args[0][1] == "explicit-repo"
+
+    def test_auto_detect_from_https_origin(
+        self, cli_runner: CliRunner, mock_result: PRAnalysisResult
+    ):
+        """Should auto-detect repo from HTTPS git origin URL."""
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = mock_result
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+                    mock_git.return_value = ("https-owner", "https-repo")
+
+                    # No --repo provided, should use git origin
+                    result = cli_runner.invoke(
+                        main,
+                        ["123"],
+                        env={"GITHUB_TOKEN": "ghp_test"},
+                    )
+
+        assert result.exit_code == 0
+        mock_analyzer.analyze.assert_called_once()
+        call_args = mock_analyzer.analyze.call_args
+        assert call_args[0][0] == "https-owner"
+        assert call_args[0][1] == "https-repo"
+
+    def test_auto_detect_from_ssh_origin(
+        self, cli_runner: CliRunner, mock_result: PRAnalysisResult
+    ):
+        """Should auto-detect repo from SSH git origin URL."""
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = mock_result
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+                    mock_git.return_value = ("ssh-owner", "ssh-repo")
+
+                    result = cli_runner.invoke(
+                        main,
+                        ["123"],
+                        env={"GITHUB_TOKEN": "ghp_test"},
+                    )
+
+        assert result.exit_code == 0
+        mock_analyzer.analyze.assert_called_once()
+        call_args = mock_analyzer.analyze.call_args
+        assert call_args[0][0] == "ssh-owner"
+        assert call_args[0][1] == "ssh-repo"
+
+    def test_error_when_no_repo_and_no_git_origin(self, cli_runner: CliRunner):
+        """Should exit with error when no --repo and no git origin."""
+        with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+            mock_git.return_value = None  # No git origin found
+
+            result = cli_runner.invoke(
+                main,
+                ["123"],
+                env={"GITHUB_TOKEN": "ghp_test"},
+            )
+
+        assert result.exit_code == 4
+        assert "origin" in result.output.lower() or "repo" in result.output.lower()
+
+    def test_error_when_not_in_git_repo(self, cli_runner: CliRunner):
+        """Should exit with error when not in a git repository.
+
+        Note: get_repo_from_git_origin catches subprocess errors and returns None,
+        so when not in a git repo, it returns None rather than raising.
+        """
+        with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+            # Not in a git repo returns None (subprocess error is caught internally)
+            mock_git.return_value = None
+
+            result = cli_runner.invoke(
+                main,
+                ["123"],
+                env={"GITHUB_TOKEN": "ghp_test"},
+            )
+
+        assert result.exit_code == 4
+        assert "origin" in result.output.lower() or "repo" in result.output.lower()
+
+    def test_error_when_origin_not_github(self, cli_runner: CliRunner):
+        """Should exit with error when origin is not a GitHub URL."""
+        with patch("goodtogo.cli.get_repo_from_git_origin") as mock_git:
+            # Return None to indicate non-GitHub origin
+            mock_git.return_value = None
+
+            result = cli_runner.invoke(
+                main,
+                ["123"],
+                env={"GITHUB_TOKEN": "ghp_test"},
+            )
+
+        assert result.exit_code == 4
+
+    def test_help_shows_repo_is_optional(self, cli_runner: CliRunner):
+        """--help should indicate that --repo is optional."""
+        result = cli_runner.invoke(main, ["--help"])
+
+        # The help text should not show --repo as required
+        # or should mention auto-detection
+        assert "--repo" in result.output
+        # Should mention it's optional or auto-detected
+        assert "auto" in result.output.lower() or "optional" in result.output.lower()
+
+
+# ============================================================================
+# Test: parse_github_remote_url function
+# ============================================================================
+
+
+class TestParseGitHubRemoteUrl:
+    """Tests for parsing GitHub remote URLs."""
+
+    def test_parse_https_url(self):
+        """Should parse HTTPS GitHub URL."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("https://github.com/owner/repo.git")
+        assert result == ("owner", "repo")
+
+    def test_parse_https_url_without_git_suffix(self):
+        """Should parse HTTPS GitHub URL without .git suffix."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("https://github.com/owner/repo")
+        assert result == ("owner", "repo")
+
+    def test_parse_ssh_url(self):
+        """Should parse SSH GitHub URL."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("git@github.com:owner/repo.git")
+        assert result == ("owner", "repo")
+
+    def test_parse_ssh_url_without_git_suffix(self):
+        """Should parse SSH GitHub URL without .git suffix."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("git@github.com:owner/repo")
+        assert result == ("owner", "repo")
+
+    def test_parse_https_with_trailing_slash(self):
+        """Should handle HTTPS URL with trailing slash."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("https://github.com/owner/repo/")
+        assert result == ("owner", "repo")
+
+    def test_returns_none_for_non_github_https(self):
+        """Should return None for non-GitHub HTTPS URL."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("https://gitlab.com/owner/repo.git")
+        assert result is None
+
+    def test_returns_none_for_non_github_ssh(self):
+        """Should return None for non-GitHub SSH URL."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("git@gitlab.com:owner/repo.git")
+        assert result is None
+
+    def test_returns_none_for_invalid_url(self):
+        """Should return None for invalid URL."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("not-a-valid-url")
+        assert result is None
+
+    def test_returns_none_for_empty_string(self):
+        """Should return None for empty string."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("")
+        assert result is None
+
+
+# ============================================================================
+# Test: get_repo_from_git_origin function
+# ============================================================================
+
+
+class TestGetRepoFromGitOrigin:
+    """Tests for get_repo_from_git_origin function."""
+
+    def test_returns_none_when_git_command_fails(self):
+        """Should return None when git command fails (not a git repo)."""
+        import subprocess
+
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                returncode=128,
+                cmd=["git", "remote", "get-url", "origin"],
+                output=b"",
+                stderr=b"fatal: not a git repository",
+            )
+
+            result = get_repo_from_git_origin()
+
+        assert result is None
+
+    def test_parses_https_origin(self):
+        """Should parse HTTPS origin URL."""
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_result = MagicMock()
+            mock_result.stdout = "https://github.com/test-owner/test-repo.git\n"
+            mock_run.return_value = mock_result
+
+            result = get_repo_from_git_origin()
+
+        assert result == ("test-owner", "test-repo")
+
+    def test_parses_ssh_origin(self):
+        """Should parse SSH origin URL."""
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_result = MagicMock()
+            mock_result.stdout = "git@github.com:test-owner/test-repo.git\n"
+            mock_run.return_value = mock_result
+
+            result = get_repo_from_git_origin()
+
+        assert result == ("test-owner", "test-repo")
+
+    def test_returns_none_for_non_github_origin(self):
+        """Should return None for non-GitHub origin."""
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_result = MagicMock()
+            mock_result.stdout = "https://gitlab.com/test-owner/test-repo.git\n"
+            mock_run.return_value = mock_result
+
+            result = get_repo_from_git_origin()
+
+        assert result is None

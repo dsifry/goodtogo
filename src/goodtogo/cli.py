@@ -16,15 +16,18 @@ Exit codes (with -q or --semantic-codes):
     4 - Error fetching data (PRStatus.ERROR)
 
 Example:
-    $ gtg 123 --repo myorg/myrepo
-    $ gtg 123 --repo myorg/myrepo --format text --verbose
-    $ gtg 123 --repo myorg/myrepo -q  # quiet mode with semantic exit codes
-    $ gtg 123 --repo myorg/myrepo --semantic-codes  # semantic exit codes with output
+    $ gtg 123                          # auto-detect repo from git origin
+    $ gtg 123 --repo myorg/myrepo      # explicit repo
+    $ gtg 123 --format text --verbose  # human-readable output
+    $ gtg 123 -q                       # quiet mode with semantic exit codes
+    $ gtg 123 --semantic-codes         # semantic exit codes with output
 """
 
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 import sys
 from typing import Optional
 
@@ -35,6 +38,68 @@ from goodtogo.container import Container
 from goodtogo.core.analyzer import PRAnalyzer
 from goodtogo.core.errors import redact_error
 from goodtogo.core.models import PRAnalysisResult, PRStatus
+
+
+def parse_github_remote_url(url: str) -> Optional[tuple[str, str]]:
+    """Parse a GitHub remote URL to extract owner and repo.
+
+    Supports both HTTPS and SSH formats:
+    - https://github.com/owner/repo.git
+    - https://github.com/owner/repo
+    - git@github.com:owner/repo.git
+    - git@github.com:owner/repo
+
+    Args:
+        url: The git remote URL to parse.
+
+    Returns:
+        Tuple of (owner, repo) if the URL is a valid GitHub URL,
+        None otherwise.
+    """
+    if not url:
+        return None
+
+    # HTTPS format: https://github.com/owner/repo.git or https://github.com/owner/repo
+    https_pattern = r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$"
+    match = re.match(https_pattern, url)
+    if match:
+        return (match.group(1), match.group(2))
+
+    # SSH format: git@github.com:owner/repo.git or git@github.com:owner/repo
+    ssh_pattern = r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$"
+    match = re.match(ssh_pattern, url)
+    if match:
+        return (match.group(1), match.group(2))
+
+    return None
+
+
+def get_repo_from_git_origin() -> Optional[tuple[str, str]]:
+    """Get repository owner and name from git remote origin.
+
+    Runs `git remote get-url origin` to get the origin URL,
+    then parses it to extract owner and repo name.
+
+    Returns:
+        Tuple of (owner, repo) if origin is a valid GitHub URL,
+        None if origin doesn't exist or isn't a GitHub URL.
+
+    Raises:
+        Exception: If not in a git repository or git command fails.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        origin_url = result.stdout.strip()
+        return parse_github_remote_url(origin_url)
+    except subprocess.CalledProcessError:
+        # No origin remote or not a git repo
+        return None
+
 
 # Semantic exit codes for shell scripting (-q or --semantic-codes)
 SEMANTIC_EXIT_CODES: dict[PRStatus, int] = {
@@ -60,8 +125,9 @@ AI_FRIENDLY_EXIT_CODES: dict[PRStatus, int] = {
 @click.option(
     "--repo",
     "-r",
-    required=True,
-    help="Repository in owner/repo format",
+    required=False,
+    default=None,
+    help="Repository in owner/repo format (auto-detected from git origin if not provided)",
 )
 @click.option(
     "--cache",
@@ -112,7 +178,7 @@ AI_FRIENDLY_EXIT_CODES: dict[PRStatus, int] = {
 @click.version_option(version=__version__)
 def main(
     pr_number: int,
-    repo: str,
+    repo: Optional[str],
     cache: str,
     cache_path: str,
     redis_url: Optional[str],
@@ -143,12 +209,25 @@ def main(
         click.echo("Error: GITHUB_TOKEN environment variable required", err=True)
         sys.exit(4)
 
-    # Parse owner/repo from --repo option
-    try:
-        owner, repo_name = repo.split("/")
-    except ValueError:
-        click.echo("Error: --repo must be in owner/repo format", err=True)
-        sys.exit(4)
+    # Determine owner/repo - either from --repo option or auto-detect from git origin
+    if repo:
+        # Parse owner/repo from --repo option
+        try:
+            owner, repo_name = repo.split("/")
+        except ValueError:
+            click.echo("Error: --repo must be in owner/repo format", err=True)
+            sys.exit(4)
+    else:
+        # Auto-detect from git origin
+        detected = get_repo_from_git_origin()
+        if detected is None:
+            click.echo(
+                "Error: Could not detect repository from git origin. "
+                "Use --repo owner/repo or run from a GitHub repository.",
+                err=True,
+            )
+            sys.exit(4)
+        owner, repo_name = detected
 
     # Create container and analyzer, then analyze PR
     try:
