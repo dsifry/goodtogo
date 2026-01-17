@@ -345,3 +345,47 @@ class TestCodeRabbitParserPrecedence:
 
         assert classification == CommentClassification.ACTIONABLE
         assert priority == Priority.MINOR
+
+
+class TestCodeRabbitParserSummaryPatterns:
+    """Tests for summary/walkthrough and tip content detection."""
+
+    @pytest.fixture
+    def parser(self) -> CodeRabbitParser:
+        """Create a CodeRabbitParser instance."""
+        return CodeRabbitParser()
+
+    def test_walkthrough_header_is_non_actionable(self, parser: CodeRabbitParser) -> None:
+        """Test ## Walkthrough header is classified as NON_ACTIONABLE."""
+        body = "## Walkthrough\n\nThis PR adds a feature."
+        comment = {"body": body}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_tip_callout_is_non_actionable(self, parser: CodeRabbitParser) -> None:
+        """Test > [!TIP] is classified as NON_ACTIONABLE."""
+        body = "> [!TIP]\n> Use this method."
+        comment = {"body": body}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_mermaid_is_non_actionable(self, parser: CodeRabbitParser) -> None:
+        """Test mermaid diagrams are NON_ACTIONABLE."""
+        body = "```mermaid\ndiagram\n```"
+        comment = {"body": body}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_summary_content_no_match(self, parser: CodeRabbitParser) -> None:
+        """Test _is_summary_content returns False for non-matching text."""
+        assert parser._is_summary_content("Regular text") is False
+
+    def test_is_tip_content_no_match(self, parser: CodeRabbitParser) -> None:
+        """Test _is_tip_content returns False for non-matching text."""
+        assert parser._is_tip_content("> Quote") is False

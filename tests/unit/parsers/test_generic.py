@@ -297,3 +297,96 @@ class TestGenericParserEdgeCases:
 
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
+
+
+class TestGenericParserReplyPatterns:
+    """Tests for reply confirmation and approval pattern detection."""
+
+    @pytest.fixture
+    def parser(self) -> GenericParser:
+        """Create a GenericParser instance."""
+        return GenericParser()
+
+    def test_good_catch_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Good catch!' is classified as NON_ACTIONABLE."""
+        comment = {"body": "Good catch!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_lgtm_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'LGTM' is classified as NON_ACTIONABLE."""
+        comment = {"body": "LGTM!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_done_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Done' is classified as NON_ACTIONABLE."""
+        comment = {"body": "Done!"}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_reply_confirmation_no_match(self, parser: GenericParser) -> None:
+        """Test _is_reply_confirmation returns False for non-matching text."""
+        assert parser._is_reply_confirmation("Please fix this bug") is False
+
+    def test_is_approval_no_match(self, parser: GenericParser) -> None:
+        """Test _is_approval returns False for non-matching text."""
+        assert parser._is_approval("Needs changes") is False
+
+    def test_agreed_standalone_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Agreed.' alone is classified as NON_ACTIONABLE."""
+        for body in ["Agreed.", "agreed!", "Agreed"]:
+            comment = {"body": body}
+            classification, _, requires_investigation = parser.parse(comment)
+            assert (
+                classification == CommentClassification.NON_ACTIONABLE
+            ), f"'{body}' should be NON_ACTIONABLE"
+            assert requires_investigation is False
+
+    def test_agreed_with_continuation_is_ambiguous(self, parser: GenericParser) -> None:
+        """Test 'Agreed, but...' is classified as AMBIGUOUS."""
+        # These have additional content that may require action
+        test_cases = [
+            "Agreed, but please add tests",
+            "Agreed, but we need to handle edge cases",
+            "Agreed. However, consider also fixing the other issue",
+        ]
+        for body in test_cases:
+            comment = {"body": body}
+            classification, _, requires_investigation = parser.parse(comment)
+            assert (
+                classification == CommentClassification.AMBIGUOUS
+            ), f"'{body}' should be AMBIGUOUS, not NON_ACTIONABLE"
+            assert requires_investigation is True
+
+    def test_makes_sense_standalone_is_non_actionable(self, parser: GenericParser) -> None:
+        """Test 'Makes sense.' alone is classified as NON_ACTIONABLE."""
+        for body in ["Makes sense.", "makes sense!", "Makes sense"]:
+            comment = {"body": body}
+            classification, _, requires_investigation = parser.parse(comment)
+            assert (
+                classification == CommentClassification.NON_ACTIONABLE
+            ), f"'{body}' should be NON_ACTIONABLE"
+            assert requires_investigation is False
+
+    def test_makes_sense_with_continuation_is_ambiguous(self, parser: GenericParser) -> None:
+        """Test 'Makes sense, but...' is classified as AMBIGUOUS."""
+        # These have additional content that may require action
+        test_cases = [
+            "Makes sense, but please add tests",
+            "Makes sense, but can we also handle null?",
+            "Makes sense. However, the naming could be better",
+        ]
+        for body in test_cases:
+            comment = {"body": body}
+            classification, _, requires_investigation = parser.parse(comment)
+            assert (
+                classification == CommentClassification.AMBIGUOUS
+            ), f"'{body}' should be AMBIGUOUS, not NON_ACTIONABLE"
+            assert requires_investigation is True
