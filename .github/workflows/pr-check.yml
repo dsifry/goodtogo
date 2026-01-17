@@ -53,7 +53,8 @@ jobs:
           set +e  # Don't exit on non-zero
           # Exclude gtg-check from evaluation to avoid circular dependency
           # (gtg-check seeing its own previous failure as a CI failure)
-          gtg ${{ steps.pr.outputs.pr_number }} --repo ${{ github.repository }} --format json --exclude-checks gtg-check > gtg-result.json
+          # Use --semantic-codes to get different exit codes per status (0=ready, 1=action, 2=threads, 3=ci, 4=error)
+          gtg ${{ steps.pr.outputs.pr_number }} --repo ${{ github.repository }} --format json --semantic-codes --exclude-checks gtg-check > gtg-result.json
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
