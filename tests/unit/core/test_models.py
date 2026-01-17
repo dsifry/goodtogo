@@ -15,6 +15,7 @@ from goodtogo.core.models import (
     CIStatus,
     Comment,
     CommentClassification,
+    OutsideDiffComment,
     PRAnalysisResult,
     Priority,
     PRStatus,
@@ -703,3 +704,102 @@ class TestPRAnalysisResultModel:
         result = PRAnalysisResult(**valid_analysis_result_data)
         assert len(result.action_items) == 2
         assert "actionable comments" in result.action_items[0]
+
+    def test_with_outside_diff_comments(self, valid_analysis_result_data):
+        """PRAnalysisResult accepts outside_diff_comments list."""
+        outside_comment_data = {
+            "source": "coderabbitai[bot]",
+            "review_id": "review_123",
+            "file_path": "src/config.py",
+            "line_range": "42-45",
+            "body": "Consider adding validation for the config values.",
+            "review_url": "https://github.com/org/repo/pull/123#pullrequestreview-123",
+        }
+        valid_analysis_result_data["outside_diff_comments"] = [outside_comment_data]
+
+        result = PRAnalysisResult(**valid_analysis_result_data)
+        assert len(result.outside_diff_comments) == 1
+        assert result.outside_diff_comments[0].file_path == "src/config.py"
+        assert result.outside_diff_comments[0].line_range == "42-45"
+
+    def test_outside_diff_comments_defaults_to_empty_list(self, valid_analysis_result_data):
+        """outside_diff_comments defaults to empty list when not provided."""
+        # Don't include outside_diff_comments in the data
+        result = PRAnalysisResult(**valid_analysis_result_data)
+        assert result.outside_diff_comments == []
+
+
+class TestOutsideDiffCommentModel:
+    """Tests for OutsideDiffComment Pydantic model."""
+
+    @pytest.fixture
+    def valid_outside_diff_comment_data(self):
+        """Provide valid outside diff comment data for testing."""
+        return {
+            "source": "coderabbitai[bot]",
+            "review_id": "review_123",
+            "file_path": "src/config.py",
+            "line_range": "42-45",
+            "body": "Consider adding validation for the config values.",
+            "review_url": "https://github.com/org/repo/pull/123#pullrequestreview-123",
+        }
+
+    def test_instantiation_with_valid_data(self, valid_outside_diff_comment_data):
+        """OutsideDiffComment model instantiates correctly with valid data."""
+        comment = OutsideDiffComment(**valid_outside_diff_comment_data)
+        assert comment.source == "coderabbitai[bot]"
+        assert comment.review_id == "review_123"
+        assert comment.file_path == "src/config.py"
+        assert comment.line_range == "42-45"
+        assert comment.body == "Consider adding validation for the config values."
+        assert comment.review_url == "https://github.com/org/repo/pull/123#pullrequestreview-123"
+
+    def test_optional_fields_accept_none(self, valid_outside_diff_comment_data):
+        """Optional fields accept None values."""
+        valid_outside_diff_comment_data["line_range"] = None
+        valid_outside_diff_comment_data["review_url"] = None
+
+        comment = OutsideDiffComment(**valid_outside_diff_comment_data)
+        assert comment.line_range is None
+        assert comment.review_url is None
+
+    def test_missing_required_field_raises(self, valid_outside_diff_comment_data):
+        """Missing required field raises ValidationError."""
+        del valid_outside_diff_comment_data["file_path"]
+        with pytest.raises(ValidationError):
+            OutsideDiffComment(**valid_outside_diff_comment_data)
+
+    def test_single_line_number(self):
+        """line_range accepts single line numbers."""
+        data = {
+            "source": "coderabbitai[bot]",
+            "review_id": "review_123",
+            "file_path": "src/utils.py",
+            "line_range": "100",
+            "body": "This function could use memoization.",
+            "review_url": None,
+        }
+        comment = OutsideDiffComment(**data)
+        assert comment.line_range == "100"
+
+    def test_serialization_to_json(self, valid_outside_diff_comment_data):
+        """OutsideDiffComment model serializes to JSON correctly."""
+        comment = OutsideDiffComment(**valid_outside_diff_comment_data)
+        json_str = comment.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["source"] == "coderabbitai[bot]"
+        assert data["file_path"] == "src/config.py"
+        assert data["line_range"] == "42-45"
+        assert data["body"] == "Consider adding validation for the config values."
+
+    def test_serialization_roundtrip(self, valid_outside_diff_comment_data):
+        """OutsideDiffComment serializes and deserializes correctly."""
+        original = OutsideDiffComment(**valid_outside_diff_comment_data)
+        json_str = original.model_dump_json()
+        restored = OutsideDiffComment.model_validate_json(json_str)
+
+        assert original.source == restored.source
+        assert original.file_path == restored.file_path
+        assert original.line_range == restored.line_range
+        assert original.body == restored.body

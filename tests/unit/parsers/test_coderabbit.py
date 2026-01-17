@@ -11,7 +11,7 @@ This module tests the CodeRabbitParser implementation, verifying:
 
 import pytest
 
-from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.core.models import CommentClassification, OutsideDiffComment, Priority, ReviewerType
 from goodtogo.parsers.coderabbit import CodeRabbitParser
 
 
@@ -673,3 +673,246 @@ class TestCodeRabbitParserAcknowledgments:
         """Test _is_acknowledgment works with hyphenated usernames."""
         assert parser._is_acknowledgment("@foo-bar Thank you for the fix!") is True
         assert parser._is_acknowledgment("`@my-user-name` Thank you for the catch!") is True
+
+
+class TestCodeRabbitParserOutsideDiffComments:
+    """Tests for parsing 'Outside diff range comments' from review bodies."""
+
+    @pytest.fixture
+    def parser(self) -> CodeRabbitParser:
+        """Create a CodeRabbitParser instance."""
+        return CodeRabbitParser()
+
+    def test_parse_outside_diff_comments_single_item(self, parser: CodeRabbitParser) -> None:
+        """Test parsing a single outside diff comment from review body."""
+        review_body = """
+## Summary
+
+Some review content here.
+
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/config.py:42-45**: Consider adding validation for the config values.
+
+</details>
+
+Other content.
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body,
+            review_id="123",
+            author="coderabbitai[bot]",
+            review_url="https://github.com/org/repo/pull/1#pullrequestreview-123",
+        )
+
+        assert len(results) == 1
+        assert results[0].source == "coderabbitai[bot]"
+        assert results[0].review_id == "123"
+        assert results[0].file_path == "src/config.py"
+        assert results[0].line_range == "42-45"
+        assert "validation" in results[0].body
+        assert results[0].review_url == "https://github.com/org/repo/pull/1#pullrequestreview-123"
+
+    def test_parse_outside_diff_comments_multiple_items(self, parser: CodeRabbitParser) -> None:
+        """Test parsing multiple outside diff comments from review body."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (3)</summary>
+
+**src/config.py:42-45**: Consider adding validation for the config values.
+
+**src/utils.py:100**: This function could use memoization for performance.
+
+**tests/test_main.py:15-20**: These tests should use fixtures.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="456", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 3
+
+        assert results[0].file_path == "src/config.py"
+        assert results[0].line_range == "42-45"
+        assert "validation" in results[0].body
+
+        assert results[1].file_path == "src/utils.py"
+        assert results[1].line_range == "100"
+        assert "memoization" in results[1].body
+
+        assert results[2].file_path == "tests/test_main.py"
+        assert results[2].line_range == "15-20"
+        assert "fixtures" in results[2].body
+
+    def test_parse_outside_diff_comments_no_section(self, parser: CodeRabbitParser) -> None:
+        """Test returns empty list when no outside diff section exists."""
+        review_body = """
+## Summary
+
+This is a regular review without outside diff comments.
+
+Everything looks good!
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="789", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 0
+
+    def test_parse_outside_diff_comments_empty_body(self, parser: CodeRabbitParser) -> None:
+        """Test returns empty list for empty review body."""
+        results = parser.parse_outside_diff_comments(
+            "", review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 0
+
+    def test_parse_outside_diff_comments_empty_section(self, parser: CodeRabbitParser) -> None:
+        """Test returns empty list when section exists but has no items."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (0)</summary>
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 0
+
+    def test_parse_outside_diff_comments_multiline_body(self, parser: CodeRabbitParser) -> None:
+        """Test parsing comment with multiline body text."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/handler.py:50-55**: This error handling could be improved.
+You should consider catching specific exceptions rather than using a bare except.
+Also, logging the error would help with debugging.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 1
+        assert results[0].file_path == "src/handler.py"
+        assert results[0].line_range == "50-55"
+        assert "error handling" in results[0].body
+        assert "logging" in results[0].body
+
+    def test_parse_outside_diff_comments_case_insensitive(self, parser: CodeRabbitParser) -> None:
+        """Test parsing is case insensitive for section header."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f OUTSIDE DIFF RANGE COMMENTS (1)</summary>
+
+**src/config.py:10**: Add a docstring here.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 1
+        assert results[0].file_path == "src/config.py"
+
+    def test_parse_outside_diff_comments_with_singular_comment(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test parsing with singular 'comment' in header."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comment (1)</summary>
+
+**src/main.py:5**: Initialize this variable.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 1
+        assert results[0].file_path == "src/main.py"
+
+    def test_parse_outside_diff_comments_preserves_review_url(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test that review_url is preserved correctly."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/config.py:1**: Add header.
+
+</details>
+"""
+        url = "https://github.com/org/repo/pull/42#pullrequestreview-999"
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="999", author="coderabbitai[bot]", review_url=url
+        )
+
+        assert len(results) == 1
+        assert results[0].review_url == url
+
+    def test_parse_outside_diff_comments_no_review_url(self, parser: CodeRabbitParser) -> None:
+        """Test that review_url can be None."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/config.py:1**: Add header.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]", review_url=None
+        )
+
+        assert len(results) == 1
+        assert results[0].review_url is None
+
+    def test_parse_outside_diff_comments_returns_outside_diff_comment_type(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test that returned objects are OutsideDiffComment instances."""
+        review_body = """
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/config.py:42**: Check this.
+
+</details>
+"""
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        assert len(results) == 1
+        assert isinstance(results[0], OutsideDiffComment)
+
+    def test_parse_outside_diff_comments_skips_empty_body(self, parser: CodeRabbitParser) -> None:
+        """Test that items with empty body are skipped."""
+        # First item has no body text after the colon, second has content
+        # Note: items must be separated by blank lines (double newline)
+        review_body = (
+            "<details>\n"
+            "<summary>\u26a0\ufe0f Outside diff range comments (2)</summary>\n\n"
+            "**src/config.py:42**:\n\n"
+            "**src/utils.py:10**: This has content.\n\n"
+            "</details>"
+        )
+        results = parser.parse_outside_diff_comments(
+            review_body, review_id="123", author="coderabbitai[bot]"
+        )
+
+        # Only the second item should be included (first has empty body)
+        assert len(results) == 1
+        assert results[0].file_path == "src/utils.py"
+        assert results[0].body == "This has content."
