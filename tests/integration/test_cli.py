@@ -103,7 +103,7 @@ class TestInvalidRepoFormat:
         assert "--repo must be in owner/repo format" in result.output
 
     def test_empty_repo_exits_with_error(self, cli_runner: CliRunner, mock_env):
-        """CLI should exit with error when --repo is empty."""
+        """CLI should exit with error when --repo is empty, not fall through to auto-detect."""
         result = cli_runner.invoke(
             main,
             ["123", "--repo", ""],
@@ -111,6 +111,41 @@ class TestInvalidRepoFormat:
         )
 
         assert result.exit_code == 4
+        # Must show format error, not auto-detect error
+        assert "--repo must be in owner/repo format" in result.output
+
+    def test_whitespace_repo_exits_with_error(self, cli_runner: CliRunner, mock_env):
+        """CLI should exit with error when --repo is whitespace only."""
+        result = cli_runner.invoke(
+            main,
+            ["123", "--repo", "   "],
+            env={"GITHUB_TOKEN": "ghp_test_token"},
+        )
+
+        assert result.exit_code == 4
+        assert "--repo must be in owner/repo format" in result.output
+
+    def test_empty_owner_in_repo_exits_with_error(self, cli_runner: CliRunner, mock_env):
+        """CLI should exit with error when owner is empty in --repo."""
+        result = cli_runner.invoke(
+            main,
+            ["123", "--repo", "/myrepo"],
+            env={"GITHUB_TOKEN": "ghp_test_token"},
+        )
+
+        assert result.exit_code == 4
+        assert "--repo must be in owner/repo format" in result.output
+
+    def test_empty_reponame_in_repo_exits_with_error(self, cli_runner: CliRunner, mock_env):
+        """CLI should exit with error when repo name is empty in --repo."""
+        result = cli_runner.invoke(
+            main,
+            ["123", "--repo", "owner/"],
+            env={"GITHUB_TOKEN": "ghp_test_token"},
+        )
+
+        assert result.exit_code == 4
+        assert "--repo must be in owner/repo format" in result.output
 
 
 # ============================================================================

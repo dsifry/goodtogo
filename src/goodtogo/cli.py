@@ -207,10 +207,12 @@ def main(
         sys.exit(4)
 
     # Determine owner/repo - either from --repo option or auto-detect from git origin
-    if repo:
+    if repo is not None:
         # Parse owner/repo from --repo option
         try:
-            owner, repo_name = repo.split("/")
+            owner, repo_name = repo.strip().split("/")
+            if not owner or not repo_name:
+                raise ValueError("Empty owner or repo name")
         except ValueError:
             click.echo("Error: --repo must be in owner/repo format", err=True)
             sys.exit(4)
