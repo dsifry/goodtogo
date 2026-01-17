@@ -555,11 +555,13 @@ class PRAnalyzer:
         Returns:
             ReviewerType for the identified reviewer.
         """
-        # Check parsers in order (CODERABBIT, GREPTILE, CLAUDE, CURSOR, then fallback)
+        # Check parsers in order - CLAUDE before GREPTILE because Greptile's
+        # body pattern matches "greptile" anywhere, which can match Claude
+        # comments that mention Greptile. Author-based detection is more reliable.
         parser_order = [
             ReviewerType.CODERABBIT,
-            ReviewerType.GREPTILE,
             ReviewerType.CLAUDE,
+            ReviewerType.GREPTILE,
             ReviewerType.CURSOR,
         ]
 

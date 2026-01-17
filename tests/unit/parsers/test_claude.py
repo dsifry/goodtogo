@@ -2,9 +2,9 @@
 
 This module tests the ClaudeCodeParser implementation, verifying:
 - Author and body detection patterns (can_parse)
-- Actionable patterns (must, should fix, error, bug)
-- Approval patterns (LGTM, looks good, approved, ship it)
-- Suggestion patterns (consider, suggestion, might)
+- Blocking patterns (❌ Blocking, must fix before merge)
+- Approval patterns (LGTM, APPROVE, looks good, ready to merge)
+- Suggestion patterns (consider, suggestion, might, recommendation)
 - Correct priority and requires_investigation values
 """
 
@@ -22,6 +22,10 @@ class TestClaudeCodeParserCanParse:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
+    def test_can_parse_by_author_claude_bot(self, parser: ClaudeCodeParser) -> None:
+        """Test detection by claude[bot] author (GitHub Actions bot)."""
+        assert parser.can_parse("claude[bot]", "") is True
+
     def test_can_parse_by_author_claude_code_bot(self, parser: ClaudeCodeParser) -> None:
         """Test detection by claude-code[bot] author."""
         assert parser.can_parse("claude-code[bot]", "") is True
@@ -32,6 +36,7 @@ class TestClaudeCodeParserCanParse:
 
     def test_can_parse_by_author_case_insensitive(self, parser: ClaudeCodeParser) -> None:
         """Test that author matching is case-insensitive."""
+        assert parser.can_parse("CLAUDE[BOT]", "") is True
         assert parser.can_parse("CLAUDE-CODE[BOT]", "") is True
         assert parser.can_parse("Claude-Code[bot]", "") is True
         assert parser.can_parse("ANTHROPIC-CLAUDE[bot]", "") is True
@@ -46,10 +51,16 @@ class TestClaudeCodeParserCanParse:
         body = "This review was performed by Claude Code."
         assert parser.can_parse("other-user", body) is True
 
+    def test_can_parse_by_body_task_completion_marker(self, parser: ClaudeCodeParser) -> None:
+        """Test detection by '**Claude finished' task completion marker."""
+        body = "**Claude finished @dsifry's task** —— [View job](https://...)"
+        assert parser.can_parse("other-user", body) is True
+
     def test_can_parse_by_body_case_insensitive(self, parser: ClaudeCodeParser) -> None:
         """Test that body signature detection is case-insensitive."""
         assert parser.can_parse("other", "GENERATED WITH CLAUDE CODE") is True
         assert parser.can_parse("other", "claude code") is True
+        assert parser.can_parse("other", "**CLAUDE FINISHED") is True
 
     def test_can_parse_non_matching_author(self, parser: ClaudeCodeParser) -> None:
         """Test that non-matching authors are rejected."""
@@ -73,85 +84,77 @@ class TestClaudeCodeParserReviewerType:
         assert parser.reviewer_type == ReviewerType.CLAUDE
 
 
-class TestClaudeCodeParserActionablePatterns:
-    """Tests for actionable pattern detection."""
+class TestClaudeCodeParserBlockingPatterns:
+    """Tests for blocking pattern detection (ACTIONABLE/CRITICAL)."""
 
     @pytest.fixture
     def parser(self) -> ClaudeCodeParser:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
-    def test_parse_must_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'must' keyword triggers ACTIONABLE."""
-        body = "You must handle this edge case."
+    def test_parse_blocking_emoji_marker(self, parser: ClaudeCodeParser) -> None:
+        """Test '❌ Blocking' marker triggers ACTIONABLE/CRITICAL."""
+        body = "❌ Blocking: This authentication bypass must be addressed."
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
-    def test_parse_must_keyword_case_insensitive(self, parser: ClaudeCodeParser) -> None:
-        """Test 'must' keyword is case-insensitive."""
-        body = "This MUST be fixed before merge."
-        comment = {"body": body}
-        classification, _, _ = parser.parse(comment)
-
-        assert classification == CommentClassification.ACTIONABLE
-
-    def test_parse_must_as_word_boundary(self, parser: ClaudeCodeParser) -> None:
-        """Test 'must' matches as whole word only."""
-        body = "The mustard should be added to the config."
-        comment = {"body": body}
-        classification, _, _ = parser.parse(comment)
-
-        # 'mustard' should not match 'must'
-        assert classification == CommentClassification.AMBIGUOUS
-
-    def test_parse_should_fix_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'should fix' keyword triggers ACTIONABLE."""
-        body = "You should fix this null pointer issue."
+    def test_parse_critical_emoji_marker(self, parser: ClaudeCodeParser) -> None:
+        """Test '🔴 Critical' marker triggers ACTIONABLE/CRITICAL."""
+        body = "🔴 Critical: SQL injection vulnerability detected."
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
-    def test_parse_error_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'error' keyword triggers ACTIONABLE."""
-        body = "There is an error in the validation logic."
+    def test_parse_must_fix_before_merge(self, parser: ClaudeCodeParser) -> None:
+        """Test 'must fix before merge' triggers ACTIONABLE/CRITICAL."""
+        body = "You must fix before merge the security issue on line 42."
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
-    def test_parse_error_as_word_boundary(self, parser: ClaudeCodeParser) -> None:
-        """Test 'error' uses word boundary matching (\berror\b)."""
-        # "errorHandler" does not contain standalone "error" due to \b word boundary
-        # But "looks good" triggers NON_ACTIONABLE approval pattern
-        body = "The errorHandler function looks good."
-        comment = {"body": body}
-        classification, _, _ = parser.parse(comment)
-
-        # "looks good" matches approval pattern -> NON_ACTIONABLE
-        assert classification == CommentClassification.NON_ACTIONABLE
-
-    def test_parse_bug_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'bug' keyword triggers ACTIONABLE."""
-        body = "This is a bug that needs to be fixed."
+    def test_parse_required_change(self, parser: ClaudeCodeParser) -> None:
+        """Test 'required change' triggers ACTIONABLE/CRITICAL."""
+        body = "This is a required change for compliance."
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False
+
+    def test_parse_blocking_issue(self, parser: ClaudeCodeParser) -> None:
+        """Test 'blocking issue' triggers ACTIONABLE/CRITICAL."""
+        body = "This is a blocking issue that prevents deployment."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False
+
+    def test_parse_request_changes(self, parser: ClaudeCodeParser) -> None:
+        """Test 'request changes' triggers ACTIONABLE/CRITICAL."""
+        body = "I request changes on this PR."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
         assert requires_investigation is False
 
 
 class TestClaudeCodeParserApprovalPatterns:
-    """Tests for approval/LGTM pattern detection."""
+    """Tests for approval/LGTM pattern detection (NON_ACTIONABLE)."""
 
     @pytest.fixture
     def parser(self) -> ClaudeCodeParser:
@@ -186,19 +189,9 @@ class TestClaudeCodeParserApprovalPatterns:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is False
 
-    def test_parse_approved_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'approved' keyword triggers NON_ACTIONABLE."""
-        body = "Approved, ready to merge."
-        comment = {"body": body}
-        classification, priority, requires_investigation = parser.parse(comment)
-
-        assert classification == CommentClassification.NON_ACTIONABLE
-        assert priority == Priority.UNKNOWN
-        assert requires_investigation is False
-
     def test_parse_approve_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'approve' keyword triggers NON_ACTIONABLE."""
-        body = "I approve this change."
+        """Test 'APPROVE' keyword triggers NON_ACTIONABLE."""
+        body = "**Recommendation**: APPROVE"
         comment = {"body": body}
         classification, _, _ = parser.parse(comment)
 
@@ -214,6 +207,62 @@ class TestClaudeCodeParserApprovalPatterns:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is False
 
+    def test_parse_ready_to_merge(self, parser: ClaudeCodeParser) -> None:
+        """Test 'ready to merge' triggers NON_ACTIONABLE."""
+        body = "This PR is ready to merge."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_ready_for_production(self, parser: ClaudeCodeParser) -> None:
+        """Test 'ready for production' triggers NON_ACTIONABLE."""
+        body = "The code is ready for production."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_overall_assessment_positive(self, parser: ClaudeCodeParser) -> None:
+        """Test '✅ **Overall' triggers NON_ACTIONABLE."""
+        body = "✅ **Overall Assessment**: Strong implementation"
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_strong_implementation(self, parser: ClaudeCodeParser) -> None:
+        """Test 'strong implementation' triggers NON_ACTIONABLE."""
+        body = "This is a strong implementation of the feature."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_well_implemented(self, parser: ClaudeCodeParser) -> None:
+        """Test 'well-implemented' triggers NON_ACTIONABLE."""
+        body = "This is a well-implemented solution."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_production_ready(self, parser: ClaudeCodeParser) -> None:
+        """Test 'production-ready' triggers NON_ACTIONABLE."""
+        body = "The code is production-ready."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
+    def test_parse_recommend_merging(self, parser: ClaudeCodeParser) -> None:
+        """Test 'recommend merging' triggers NON_ACTIONABLE."""
+        body = "I recommend merging this PR."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+
 
 class TestClaudeCodeParserSuggestionPatterns:
     """Tests for suggestion/ambiguous pattern detection."""
@@ -224,9 +273,7 @@ class TestClaudeCodeParserSuggestionPatterns:
         return ClaudeCodeParser()
 
     def test_parse_consider_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test 'consider' keyword triggers AMBIGUOUS when no actionable keywords."""
-        # Note: "error" in "error handling" would trigger ACTIONABLE first
-        # Use a body without actionable keywords to test consider alone
+        """Test 'consider' keyword triggers AMBIGUOUS."""
         body = "Consider refactoring this method."
         comment = {"body": body}
         classification, priority, requires_investigation = parser.parse(comment)
@@ -234,16 +281,6 @@ class TestClaudeCodeParserSuggestionPatterns:
         assert classification == CommentClassification.AMBIGUOUS
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
-
-    def test_parse_consider_with_error_is_actionable(self, parser: ClaudeCodeParser) -> None:
-        """Test 'consider' is overridden by 'error' (actionable takes precedence)."""
-        body = "Consider adding error handling here."
-        comment = {"body": body}
-        classification, priority, _ = parser.parse(comment)
-
-        # "error" is an actionable keyword, checked before "consider"
-        assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
 
     def test_parse_suggestion_keyword(self, parser: ClaudeCodeParser) -> None:
         """Test 'suggestion' keyword triggers AMBIGUOUS."""
@@ -265,6 +302,26 @@ class TestClaudeCodeParserSuggestionPatterns:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
+    def test_parse_recommendation_keyword(self, parser: ClaudeCodeParser) -> None:
+        """Test 'recommendation' keyword triggers AMBIGUOUS."""
+        body = "My recommendation is to add more tests."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.AMBIGUOUS
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is True
+
+    def test_parse_could_be_improved(self, parser: ClaudeCodeParser) -> None:
+        """Test 'could be improved' triggers AMBIGUOUS."""
+        body = "The performance could be improved here."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.AMBIGUOUS
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is True
+
 
 class TestClaudeCodeParserPrecedence:
     """Tests for pattern precedence rules."""
@@ -274,18 +331,18 @@ class TestClaudeCodeParserPrecedence:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
-    def test_actionable_over_approval(self, parser: ClaudeCodeParser) -> None:
-        """Test actionable patterns take precedence over approval."""
-        body = "LGTM overall, but you must fix this null check."
+    def test_blocking_over_approval(self, parser: ClaudeCodeParser) -> None:
+        """Test blocking patterns take precedence over approval."""
+        body = "LGTM overall, but this is a blocking issue."
         comment = {"body": body}
         classification, priority, _ = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
 
-    def test_actionable_over_suggestion(self, parser: ClaudeCodeParser) -> None:
-        """Test actionable patterns take precedence over suggestions."""
-        body = "Consider this, but you must also fix the error here."
+    def test_blocking_over_suggestion(self, parser: ClaudeCodeParser) -> None:
+        """Test blocking patterns take precedence over suggestions."""
+        body = "Consider this, but it's a required change."
         comment = {"body": body}
         classification, _, _ = parser.parse(comment)
 
@@ -297,12 +354,17 @@ class TestClaudeCodeParserPrecedence:
         comment = {"body": body}
         classification, _, requires_investigation = parser.parse(comment)
 
-        # Note: Based on parser logic, actionable checked first, then approval
-        # "might" is present but LGTM should win since it comes first in checks
-        # Wait, "must" is checked before LGTM, and "might" is checked after LGTM
-        # So LGTM should match first
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
+
+    def test_approval_with_general_keywords(self, parser: ClaudeCodeParser) -> None:
+        """Test approval wins over general keywords like 'error' or 'bug'."""
+        # This tests that a review saying "APPROVE - no bugs found" is NON_ACTIONABLE
+        body = "APPROVE - No bugs or errors found in this implementation."
+        comment = {"body": body}
+        classification, _, _ = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
 
 
 class TestClaudeCodeParserAmbiguous:
@@ -340,6 +402,17 @@ class TestClaudeCodeParserAmbiguous:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is True
 
+    def test_parse_general_keywords_without_context(self, parser: ClaudeCodeParser) -> None:
+        """Test general keywords like 'error' without blocking context are AMBIGUOUS."""
+        # Simple presence of 'error' or 'bug' without explicit blocking markers
+        # should be AMBIGUOUS, requiring investigation
+        body = "There's an error in the validation logic."
+        comment = {"body": body}
+        classification, _, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.AMBIGUOUS
+        assert requires_investigation is True
+
 
 class TestClaudeCodeParserEdgeCases:
     """Tests for edge cases and special scenarios."""
@@ -349,17 +422,17 @@ class TestClaudeCodeParserEdgeCases:
         """Create a ClaudeCodeParser instance."""
         return ClaudeCodeParser()
 
-    def test_parse_multiple_actionable_keywords(self, parser: ClaudeCodeParser) -> None:
-        """Test body with multiple actionable keywords."""
-        body = "There's an error here and a bug there."
+    def test_parse_multiple_blocking_markers(self, parser: ClaudeCodeParser) -> None:
+        """Test body with multiple blocking markers."""
+        body = "❌ Blocking: issue 1. Also a required change: issue 2."
         comment = {"body": body}
         classification, priority, _ = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
-        assert priority == Priority.MINOR
+        assert priority == Priority.CRITICAL
 
-    def test_parse_body_with_code_block(self, parser: ClaudeCodeParser) -> None:
-        """Test body with code block - approval pattern wins over code content."""
+    def test_parse_body_with_code_block_approval(self, parser: ClaudeCodeParser) -> None:
+        """Test body with code block - approval pattern wins."""
         body = """
         ```python
         def must_validate():
@@ -370,37 +443,44 @@ class TestClaudeCodeParserEdgeCases:
         comment = {"body": body}
         classification, _, _ = parser.parse(comment)
 
-        # Parser uses \bmust\b word boundary, so "must_validate" doesn't match "must"
-        # However, "looks good" matches approval pattern -> NON_ACTIONABLE
+        # "must_validate" in code doesn't match blocking patterns
+        # "looks good" matches approval pattern -> NON_ACTIONABLE
         assert classification == CommentClassification.NON_ACTIONABLE
 
-    def test_parse_code_block_with_actionable_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test body with actual actionable keyword in code block."""
+    def test_parse_complex_review_with_approval(self, parser: ClaudeCodeParser) -> None:
+        """Test complex review with approval recommendation."""
         body = """
-        ```python
-        # This must be validated
-        def validate():
-            pass
-        ```
+        **Claude finished @dsifry's task** —— [View job](https://...)
+
+        ### Code Review Summary
+
+        ✅ **Overall Assessment**: Strong implementation
+
+        This is a well-implemented solution with comprehensive tests.
+
+        **Recommendation**: APPROVE
         """
         comment = {"body": body}
         classification, _, _ = parser.parse(comment)
 
-        # "must" as standalone word in comment triggers ACTIONABLE
-        assert classification == CommentClassification.ACTIONABLE
+        assert classification == CommentClassification.NON_ACTIONABLE
 
-    def test_parse_long_body_with_late_keyword(self, parser: ClaudeCodeParser) -> None:
-        """Test long body where keyword appears late."""
+    def test_parse_complex_review_with_blocking(self, parser: ClaudeCodeParser) -> None:
+        """Test complex review with blocking issue."""
         body = """
-        This is a comprehensive review of the changes.
-        The code structure looks reasonable.
-        The implementation follows best practices.
-        However, you must add proper error handling.
+        **Claude finished @dsifry's task** —— [View job](https://...)
+
+        ### Code Review Summary
+
+        ❌ Blocking: Security vulnerability detected.
+
+        This implementation has a SQL injection issue that must be addressed.
         """
         comment = {"body": body}
-        classification, _, _ = parser.parse(comment)
+        classification, priority, _ = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
 
 
 class TestClaudeCodeParserAuthorPatterns:

@@ -5,7 +5,7 @@ interface for parsing and classifying comments from the Greptile automated
 code review tool.
 
 Greptile comments are identified by:
-- Author: "greptile[bot]"
+- Author: "greptile[bot]" or "greptile-apps[bot]"
 - Body patterns: Contains "greptile.com" links or "Greptile" branding
 
 Classification rules (per design spec):
@@ -89,7 +89,7 @@ class GreptileParser(ReviewerParser):
         """Check if this parser can handle the comment.
 
         Greptile comments are identified by:
-        1. Author is "greptile[bot]"
+        1. Author is "greptile[bot]" or "greptile-apps[bot]"
         2. Body contains Greptile signature/links (fallback detection)
 
         Args:
@@ -100,7 +100,8 @@ class GreptileParser(ReviewerParser):
             True if this appears to be a Greptile comment, False otherwise.
         """
         # Primary detection: author is greptile bot
-        if author.lower() == "greptile[bot]":
+        author_lower = author.lower()
+        if author_lower in ("greptile[bot]", "greptile-apps[bot]"):
             return True
 
         # Fallback detection: body contains Greptile signature
@@ -206,6 +207,24 @@ class GreptileParser(ReviewerParser):
                 return CommentClassification.ACTIONABLE, priority, False
         return None
 
+    def _has_actionable_severity_markers(self, body: str) -> bool:
+        """Check if body contains actionable severity markers.
+
+        This is used to prevent filtering PR-level comments that contain
+        actual actionable issues with severity markers, even if they also
+        contain summary patterns.
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            True if the body contains severity markers (security, bug, error).
+        """
+        for pattern, priority in self.SEVERITY_PATTERNS:
+            if pattern.search(body) and priority in (Priority.CRITICAL, Priority.MAJOR):
+                return True
+        return False
+
     def _is_pr_summary_comment(self, comment: dict) -> bool:
         """Check if this is a PR-level summary comment.
 
@@ -218,6 +237,7 @@ class GreptileParser(ReviewerParser):
         Key criteria:
         1. Must be a PR-level comment (path=None or missing)
         2. Must match one of the PR summary patterns
+        3. Must NOT contain actionable severity markers
 
         Args:
             comment: Dictionary containing comment data with 'body' key,
@@ -235,6 +255,11 @@ class GreptileParser(ReviewerParser):
 
         body = comment.get("body", "")
         if not body:
+            return False
+
+        # Safety check: if the comment contains actionable severity markers,
+        # do NOT filter it as a summary - let it be classified by severity
+        if self._has_actionable_severity_markers(body):
             return False
 
         # Check for PR summary patterns

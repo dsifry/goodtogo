@@ -25,16 +25,19 @@ class ClaudeCodeParser(ReviewerParser):
     comment classification and priority.
 
     Author patterns:
+        - claude[bot] (GitHub Actions Claude bot)
         - claude-code[bot]
         - anthropic-claude[bot]
 
     Body signature fallback:
         - Contains Claude Code signature patterns
+        - Contains "**Claude finished" task completion marker
 
-    Classification rules:
-        - ACTIONABLE: Contains "must", "should fix", "error", "bug"
-        - NON_ACTIONABLE: LGTM / approval keywords
-        - AMBIGUOUS: Contains "consider", "suggestion", "might" or unclassified
+    Classification rules (in order of precedence):
+        1. NON_ACTIONABLE: Task completion summaries (automated review headers)
+        2. ACTIONABLE/CRITICAL: Explicit blocking markers (❌ Blocking, must fix before merge)
+        3. NON_ACTIONABLE: Explicit approval markers (APPROVE, LGTM, ready to merge)
+        4. AMBIGUOUS: Contains suggestions or unclassified
     """
 
     # Author patterns that identify Claude Code comments
@@ -48,22 +51,32 @@ class ClaudeCodeParser(ReviewerParser):
     _BODY_SIGNATURE_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"Generated with Claude Code", re.IGNORECASE),
         re.compile(r"Claude Code", re.IGNORECASE),
+        re.compile(r"\*\*Claude finished", re.IGNORECASE),  # Task completion marker
     )
 
-    # Patterns indicating actionable comments (case-insensitive)
-    _ACTIONABLE_PATTERNS: tuple[re.Pattern[str], ...] = (
-        re.compile(r"\bmust\b", re.IGNORECASE),
-        re.compile(r"\bshould\s+fix\b", re.IGNORECASE),
-        re.compile(r"\berror\b", re.IGNORECASE),
-        re.compile(r"\bbug\b", re.IGNORECASE),
+    # Patterns indicating BLOCKING issues that must be addressed (highest priority)
+    _BLOCKING_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"❌\s*Blocking", re.IGNORECASE),
+        re.compile(r"🔴\s*Critical", re.IGNORECASE),
+        re.compile(r"\bmust\s+fix\s+before\s+merge\b", re.IGNORECASE),
+        re.compile(r"\brequired\s+change\b", re.IGNORECASE),
+        re.compile(r"\bblocking\s+issue\b", re.IGNORECASE),
+        re.compile(r"\brequest\s+changes\b", re.IGNORECASE),
     )
 
-    # Patterns indicating non-actionable approval comments (case-insensitive)
+    # Patterns indicating explicit approval (non-actionable)
     _APPROVAL_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"\bLGTM\b", re.IGNORECASE),
         re.compile(r"\blooks\s+good\b", re.IGNORECASE),
-        re.compile(r"\bapproved?\b", re.IGNORECASE),
+        re.compile(r"\bAPPROVE\b"),  # Case-sensitive for explicit APPROVE
         re.compile(r"\bship\s+it\b", re.IGNORECASE),
+        re.compile(r"\bready\s+to\s+merge\b", re.IGNORECASE),
+        re.compile(r"\bready\s+for\s+production\b", re.IGNORECASE),
+        re.compile(r"✅\s*\*\*Overall", re.IGNORECASE),  # "✅ **Overall Assessment"
+        re.compile(r"\bstrong\s+implementation\b", re.IGNORECASE),
+        re.compile(r"\bwell-implemented\b", re.IGNORECASE),
+        re.compile(r"\bproduction-ready\b", re.IGNORECASE),
+        re.compile(r"\brecommend\s+merging\b", re.IGNORECASE),
     )
 
     # Patterns indicating task completion summaries (non-actionable)
@@ -81,11 +94,13 @@ class ClaudeCodeParser(ReviewerParser):
         re.compile(r"^##?\s*Overall Assessment\s*$", re.MULTILINE | re.IGNORECASE),
     )
 
-    # Patterns indicating ambiguous/suggestion comments (case-insensitive)
+    # Patterns indicating suggestions/recommendations (ambiguous, not blocking)
     _SUGGESTION_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.compile(r"\bconsider\b", re.IGNORECASE),
         re.compile(r"\bsuggestion\b", re.IGNORECASE),
         re.compile(r"\bmight\b", re.IGNORECASE),
+        re.compile(r"\brecommendation\b", re.IGNORECASE),
+        re.compile(r"\bcould\s+be\s+improved\b", re.IGNORECASE),
     )
 
     @property
@@ -127,10 +142,18 @@ class ClaudeCodeParser(ReviewerParser):
     def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
         """Parse comment and return classification.
 
-        Classifies Claude Code comments based on keyword patterns:
-        - Actionable: Contains "must", "should fix", "error", "bug"
-        - Non-actionable: LGTM / approval keywords
-        - Ambiguous: Contains "consider", "suggestion", "might" or unclassified
+        Classifies Claude Code comments based on keyword patterns with the
+        following precedence:
+        1. Blocking issues (❌, must fix) → ACTIONABLE/CRITICAL
+        2. Task completion summaries → NON_ACTIONABLE
+        3. Explicit approval (APPROVE, LGTM) → NON_ACTIONABLE
+        4. Suggestions/recommendations → AMBIGUOUS
+        5. Default → AMBIGUOUS
+
+        This order ensures that blocking issues are always classified as
+        ACTIONABLE even if they appear in task completion summaries, and that
+        reviews with explicit approval markers are classified as NON_ACTIONABLE
+        even if they contain words like "bug" or "error" in a positive context.
 
         Args:
             comment: Dictionary containing comment data with 'body' key.
@@ -138,12 +161,25 @@ class ClaudeCodeParser(ReviewerParser):
         Returns:
             Tuple of (classification, priority, requires_investigation):
             - classification: ACTIONABLE, NON_ACTIONABLE, or AMBIGUOUS
-            - priority: MINOR for actionable, UNKNOWN otherwise
+            - priority: CRITICAL for blocking, UNKNOWN otherwise
             - requires_investigation: True for AMBIGUOUS classification
         """
         body = comment.get("body", "")
 
-        # Check for task completion summaries first (these are informational)
+        # Check for blocking issues FIRST (highest priority)
+        # These are explicit markers that require action before merge
+        # and should take precedence even in task completion summaries
+        for pattern in self._BLOCKING_PATTERNS:
+            if pattern.search(body):
+                return (
+                    CommentClassification.ACTIONABLE,
+                    Priority.CRITICAL,
+                    False,
+                )
+
+        # Check for task completion summaries (informational, non-actionable)
+        # Only checked after blocking issues, so blocking issues in summaries
+        # are still classified as ACTIONABLE
         for pattern in self._SUMMARY_PATTERNS:
             if pattern.search(body):
                 return (
@@ -152,16 +188,9 @@ class ClaudeCodeParser(ReviewerParser):
                     False,
                 )
 
-        # Check for actionable patterns (highest priority for non-summary comments)
-        for pattern in self._ACTIONABLE_PATTERNS:
-            if pattern.search(body):
-                return (
-                    CommentClassification.ACTIONABLE,
-                    Priority.MINOR,
-                    False,
-                )
-
-        # Check for approval/LGTM patterns (non-actionable)
+        # Check for explicit approval markers (non-actionable)
+        # This takes precedence over suggestion patterns because a review
+        # can say "APPROVE" while also containing recommendations
         for pattern in self._APPROVAL_PATTERNS:
             if pattern.search(body):
                 return (

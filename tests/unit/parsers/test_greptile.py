@@ -30,6 +30,12 @@ class TestGreptileParserCanParse:
         assert parser.can_parse("Greptile[bot]", "") is True
         assert parser.can_parse("GREPTILE[BOT]", "") is True
 
+    def test_can_parse_by_greptile_apps_bot(self, parser: GreptileParser) -> None:
+        """Test detection by greptile-apps[bot] author."""
+        assert parser.can_parse("greptile-apps[bot]", "") is True
+        assert parser.can_parse("Greptile-Apps[bot]", "") is True
+        assert parser.can_parse("GREPTILE-APPS[BOT]", "") is True
+
     def test_can_parse_by_body_greptile_link(self, parser: GreptileParser) -> None:
         """Test detection by greptile.com link in body."""
         body = "Review powered by https://greptile.com"
