@@ -37,6 +37,9 @@ class ActionType(str, Enum):
     ADDRESSED = "addressed"
     """Agent addressed feedback in a commit."""
 
+    DISMISSED = "dismissed"
+    """Agent determined comment is non-actionable and dismissed it."""
+
 
 class AgentAction(NamedTuple):
     """Record of an action taken by an agent.
@@ -204,6 +207,47 @@ class AgentState:
         """
         self._record_action(pr_key, ActionType.ADDRESSED, comment_id, commit_sha)
 
+    def dismiss_comment(
+        self, pr_key: str, comment_id: str, reason: Optional[str] = None
+    ) -> None:
+        """Record that a comment was investigated and determined non-actionable.
+
+        Use this when a comment has been evaluated and the agent determined
+        no action is needed. This persists the decision so future runs skip
+        re-evaluation.
+
+        Args:
+            pr_key: PR identifier in format "owner/repo:pr_number".
+            comment_id: ID of the comment being dismissed.
+            reason: Optional explanation for why the comment was dismissed.
+        """
+        self._record_action(pr_key, ActionType.DISMISSED, comment_id, reason)
+
+    def is_comment_dismissed(self, pr_key: str, comment_id: str) -> bool:
+        """Check if a comment has been dismissed.
+
+        Args:
+            pr_key: PR identifier in format "owner/repo:pr_number".
+            comment_id: ID of the comment to check.
+
+        Returns:
+            True if the comment was previously dismissed, False otherwise.
+        """
+        dismissed = self._get_acted_upon_targets(pr_key, ActionType.DISMISSED)
+        return comment_id in dismissed
+
+    def get_dismissed_comments(self, pr_key: str) -> list[str]:
+        """Get all comment IDs that have been dismissed.
+
+        Args:
+            pr_key: PR identifier in format "owner/repo:pr_number".
+
+        Returns:
+            List of comment IDs that have been dismissed.
+        """
+        dismissed = self._get_acted_upon_targets(pr_key, ActionType.DISMISSED)
+        return list(dismissed)
+
     def _record_action(
         self,
         pr_key: str,
@@ -242,7 +286,7 @@ class AgentState:
     def get_pending_comments(
         self, pr_key: str, all_comment_ids: Optional[list[str]] = None
     ) -> list[str]:
-        """Get comment IDs that haven't been responded to.
+        """Get comment IDs that haven't been handled.
 
         Args:
             pr_key: PR identifier in format "owner/repo:pr_number".
@@ -250,14 +294,16 @@ class AgentState:
                 If None, returns an empty list.
 
         Returns:
-            List of comment IDs that have not been responded to or addressed.
+            List of comment IDs that have not been responded to, addressed,
+            or dismissed.
         """
         if all_comment_ids is None:
             return []
 
         responded = self._get_acted_upon_targets(pr_key, ActionType.RESPONDED)
         addressed = self._get_acted_upon_targets(pr_key, ActionType.ADDRESSED)
-        handled = responded | addressed
+        dismissed = self._get_acted_upon_targets(pr_key, ActionType.DISMISSED)
+        handled = responded | addressed | dismissed
 
         return [cid for cid in all_comment_ids if cid not in handled]
 

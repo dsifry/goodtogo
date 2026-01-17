@@ -726,11 +726,207 @@ class TestActionTypeEnum:
         assert ActionType.RESPONDED.value == "responded"
         assert ActionType.RESOLVED.value == "resolved"
         assert ActionType.ADDRESSED.value == "addressed"
+        assert ActionType.DISMISSED.value == "dismissed"
 
     def test_action_type_is_string_enum(self) -> None:
         """Test that ActionType is a string enum."""
         assert isinstance(ActionType.RESPONDED, str)
         assert ActionType.RESPONDED.value == "responded"
+
+    def test_dismissed_action_type_exists(self) -> None:
+        """Test that DISMISSED action type exists for classification persistence."""
+        assert hasattr(ActionType, "DISMISSED")
+        assert ActionType.DISMISSED.value == "dismissed"
+
+
+class TestDismissComment:
+    """Tests for dismiss_comment method."""
+
+    def test_dismiss_comment_records_action(self) -> None:
+        """Test that dismissing a comment records the action."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1")
+            dismissed = state.get_dismissed_comments("owner/repo:123")
+
+            assert "comment_1" in dismissed
+            state.close()
+
+    def test_dismiss_comment_with_reason(self) -> None:
+        """Test that dismissal reason is stored in result_id."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1", reason="Informational only")
+            actions = state.get_actions_for_pr("owner/repo:123")
+
+            assert len(actions) == 1
+            assert actions[0].action_type == ActionType.DISMISSED
+            assert actions[0].result_id == "Informational only"
+            state.close()
+
+    def test_dismiss_comment_without_reason(self) -> None:
+        """Test that dismissal works without a reason."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1")
+            actions = state.get_actions_for_pr("owner/repo:123")
+
+            assert len(actions) == 1
+            assert actions[0].action_type == ActionType.DISMISSED
+            assert actions[0].result_id is None
+            state.close()
+
+    def test_dismiss_comment_updates_on_duplicate(self) -> None:
+        """Test that duplicate dismissals update the reason."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1", reason="First reason")
+            state.dismiss_comment("owner/repo:123", "comment_1", reason="Updated reason")
+            actions = state.get_actions_for_pr("owner/repo:123")
+
+            assert len(actions) == 1
+            assert actions[0].result_id == "Updated reason"
+            state.close()
+
+
+class TestIsCommentDismissed:
+    """Tests for is_comment_dismissed method."""
+
+    def test_is_comment_dismissed_returns_false_when_not_dismissed(self) -> None:
+        """Test that non-dismissed comments return False."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            result = state.is_comment_dismissed("owner/repo:123", "comment_1")
+
+            assert result is False
+            state.close()
+
+    def test_is_comment_dismissed_returns_true_when_dismissed(self) -> None:
+        """Test that dismissed comments return True."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1")
+            result = state.is_comment_dismissed("owner/repo:123", "comment_1")
+
+            assert result is True
+            state.close()
+
+    def test_is_comment_dismissed_isolates_by_pr(self) -> None:
+        """Test that dismissal status is isolated by PR key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "comment_1")
+            result = state.is_comment_dismissed("owner/repo:456", "comment_1")
+
+            assert result is False
+            state.close()
+
+
+class TestGetDismissedComments:
+    """Tests for get_dismissed_comments method."""
+
+    def test_get_dismissed_comments_empty(self) -> None:
+        """Test that empty list is returned when no comments dismissed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            result = state.get_dismissed_comments("owner/repo:123")
+
+            assert result == []
+            state.close()
+
+    def test_get_dismissed_comments_returns_all_dismissed(self) -> None:
+        """Test that all dismissed comment IDs are returned."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "c1")
+            state.dismiss_comment("owner/repo:123", "c2")
+            state.dismiss_comment("owner/repo:123", "c3")
+            result = state.get_dismissed_comments("owner/repo:123")
+
+            assert set(result) == {"c1", "c2", "c3"}
+            state.close()
+
+    def test_get_dismissed_comments_isolates_by_pr(self) -> None:
+        """Test that dismissed comments are isolated by PR key."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "c1")
+            state.dismiss_comment("owner/repo:456", "c2")
+            result = state.get_dismissed_comments("owner/repo:123")
+
+            assert result == ["c1"]
+            state.close()
+
+
+class TestGetPendingCommentsWithDismissed:
+    """Tests for get_pending_comments excluding dismissed comments."""
+
+    def test_get_pending_comments_excludes_dismissed(self) -> None:
+        """Test that dismissed comments are excluded from pending."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.dismiss_comment("owner/repo:123", "c1")
+            result = state.get_pending_comments("owner/repo:123", ["c1", "c2", "c3"])
+
+            assert result == ["c2", "c3"]
+            state.close()
+
+    def test_get_pending_comments_excludes_all_handled_types(self) -> None:
+        """Test that responded, addressed, AND dismissed are all excluded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+            state = AgentState(db_path)
+
+            state.mark_comment_responded("owner/repo:123", "c1", "r1")
+            state.mark_comment_addressed("owner/repo:123", "c2", "sha123")
+            state.dismiss_comment("owner/repo:123", "c3", reason="Non-actionable")
+            result = state.get_pending_comments("owner/repo:123", ["c1", "c2", "c3", "c4"])
+
+            assert result == ["c4"]
+            state.close()
+
+
+class TestDismissedPersistence:
+    """Tests for dismissed comment persistence across sessions."""
+
+    def test_dismissed_persists_across_connections(self) -> None:
+        """Test that dismissals persist when connection is closed and reopened."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "state.db")
+
+            # First connection - dismiss comment
+            state1 = AgentState(db_path)
+            state1.dismiss_comment("owner/repo:123", "c1", reason="Not actionable")
+            state1.close()
+
+            # Second connection - verify dismissal persists
+            state2 = AgentState(db_path)
+            assert state2.is_comment_dismissed("owner/repo:123", "c1") is True
+            dismissed = state2.get_dismissed_comments("owner/repo:123")
+            assert "c1" in dismissed
+            state2.close()
 
 
 class TestAgentActionNamedTuple:
@@ -763,3 +959,16 @@ class TestAgentActionNamedTuple:
         )
 
         assert action.result_id is None
+
+    def test_agent_action_with_dismissed_type(self) -> None:
+        """Test AgentAction with DISMISSED action type."""
+        action = AgentAction(
+            pr_key="owner/repo:123",
+            action_type=ActionType.DISMISSED,
+            target_id="c1",
+            result_id="Informational comment",
+            created_at=1234567890,
+        )
+
+        assert action.action_type == ActionType.DISMISSED
+        assert action.result_id == "Informational comment"
