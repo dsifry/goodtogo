@@ -314,15 +314,15 @@ Good To Go recognizes these automated reviewers:
 
 ### Greptile
 
-- Author: `greptile[bot]}` or signature in body
-- Detects: Actionable comment patterns
+- Author: `greptile[bot]`, `greptile-apps[bot]`, or signature in body
+- Detects: Actionable comment patterns, severity markers
 
-### Claude Code
+### Claude
 
-- Author: `claude-code[bot]` or signature
-- Detects: "must", "should fix", "error", "bug" = actionable
-- Detects: "consider", "suggestion", "might" = ambiguous
-- Detects: "LGTM", "looks good" = non-actionable
+- Author: `claude[bot]`, `claude-code[bot]`, or signature
+- Detects blocking patterns: "❌ Blocking", "must fix before merge", "request changes"
+- Detects approval patterns: "LGTM", "looks good", "ready to merge", "APPROVE"
+- Detects suggestions: "consider", "suggestion", "might"
 
 ### Cursor/Bugbot
 

@@ -180,8 +180,8 @@ See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions 
 Good To Go recognizes and classifies comments from:
 
 - **CodeRabbit** - Critical/Major/Minor/Trivial severity
-- **Greptile** - Actionable comment detection
-- **Claude Code** - Must/should/error/bug patterns
+- **Greptile** - Actionable comment detection (`greptile[bot]`, `greptile-apps[bot]`)
+- **Claude** - Blocking/approval pattern detection (`claude[bot]`, `claude-code[bot]`)
 - **Cursor/Bugbot** - Severity-based classification
 - **Generic** - Fallback for unknown reviewers
 
