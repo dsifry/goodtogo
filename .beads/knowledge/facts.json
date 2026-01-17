@@ -1,0 +1,125 @@
+{
+  "version": "1.0",
+  "facts": [
+    {
+      "id": "gtg-001",
+      "type": "security",
+      "fact": "Branch protection documentation examples should default to enforce_admins: true and allow_force_pushes: false. Permissive examples get copy-pasted without thought.",
+      "recommendation": "Always show secure defaults first, with opt-out instructions for flexibility.",
+      "confidence": "high",
+      "tags": ["security", "documentation", "github"],
+      "affectedFiles": ["README.md", "USAGE.md"],
+      "provenance": {
+        "source": "pr-review",
+        "reference": "PR #26",
+        "date": "2026-01-17",
+        "reviewer": "coderabbitai[bot]"
+      }
+    },
+    {
+      "id": "gtg-002",
+      "type": "gotcha",
+      "fact": "GitHub branch protection required_status_checks.contexts must use actual job names like 'Lint & Format', not workflow names like 'Tests & Quality'. Using workflow names causes merges to be blocked even when all jobs pass.",
+      "recommendation": "Verify check names by running 'gh pr checks <pr-number>' to see actual names.",
+      "confidence": "high",
+      "tags": ["github", "ci", "branch-protection"],
+      "affectedFiles": [".github/workflows/*.yml"],
+      "provenance": {
+        "source": "debugging",
+        "reference": "PR #26 merge failure",
+        "date": "2026-01-17",
+        "context": "Discovered when merge was blocked despite all checks passing"
+      }
+    },
+    {
+      "id": "gtg-003",
+      "type": "gotcha",
+      "fact": "Reply-confirmation regex patterns like '^agreed...' match prefixes, so 'Agreed, but please add tests' incorrectly becomes NON_ACTIONABLE. Either anchor to end-of-string or require explicit fix confirmation wording.",
+      "recommendation": "Test regex patterns with adversarial examples that include conditional phrases.",
+      "confidence": "high",
+      "tags": ["regex", "parsing", "comment-classification"],
+      "affectedFiles": ["src/goodtogo/parsers/*.py"],
+      "provenance": {
+        "source": "pr-review",
+        "reference": "PR #16",
+        "date": "2026-01-17",
+        "reviewer": "coderabbitai[bot]"
+      }
+    },
+    {
+      "id": "gtg-004",
+      "type": "pattern",
+      "fact": "Docstrings must accurately reflect implementation. If a function catches exceptions and returns None instead of raising, document 'Returns: None if...' not 'Raises: ...'.",
+      "recommendation": "Review docstrings after changing exception handling behavior.",
+      "confidence": "high",
+      "tags": ["documentation", "docstrings", "python"],
+      "affectedFiles": ["**/*.py"],
+      "provenance": {
+        "source": "pr-review",
+        "reference": "PR #21",
+        "date": "2026-01-17",
+        "reviewer": "greptile-apps[bot]"
+      }
+    },
+    {
+      "id": "gtg-005",
+      "type": "pattern",
+      "fact": "Run formatters (black) before committing to avoid CI failures. Black formatting failures are preventable.",
+      "recommendation": "Use pre-commit hooks or add 'black --check .' to local workflow.",
+      "confidence": "high",
+      "tags": ["formatting", "ci", "python", "black"],
+      "affectedFiles": ["**/*.py"],
+      "provenance": {
+        "source": "pr-review",
+        "reference": "PR #23",
+        "date": "2026-01-17",
+        "reviewer": "coderabbitai[bot]"
+      }
+    },
+    {
+      "id": "gtg-006",
+      "type": "gotcha",
+      "fact": "When generating human-readable action items, use the filtered CIStatus (after --exclude-checks applied), not raw API data. Otherwise action items incorrectly say 'CI failing' when status is READY.",
+      "recommendation": "Build filtered models before generating user-facing text.",
+      "confidence": "high",
+      "tags": ["gtg", "text-formatting", "filtering"],
+      "affectedFiles": ["src/goodtogo/core/analyzer.py"],
+      "provenance": {
+        "source": "debugging",
+        "reference": "PR #26 text formatter bug",
+        "date": "2026-01-17",
+        "context": "Action items showed 'CI failing' even when --exclude-checks made status READY"
+      }
+    },
+    {
+      "id": "gtg-007",
+      "type": "pattern",
+      "fact": "After pushing commits or taking actions (creating issues, etc.) that address PR review feedback, explicitly reply to each review thread to document the fix and enable thread resolution.",
+      "recommendation": "Reply to threads with commit SHA and brief explanation before marking as resolved.",
+      "confidence": "high",
+      "tags": ["pr-workflow", "github", "communication"],
+      "affectedFiles": [],
+      "provenance": {
+        "source": "conversation",
+        "reference": "PR #27 shepherding",
+        "date": "2026-01-17",
+        "context": "Pushed fix but forgot to respond to CodeRabbit thread, leaving it unresolved"
+      }
+    },
+    {
+      "id": "gtg-008",
+      "type": "pattern",
+      "fact": "When gtg reports AMBIGUOUS comments from informational replies or status updates you wrote, check if the containing thread is resolvable. Resolve if the issue is addressed; escalate to user if unclear.",
+      "recommendation": "Review ambiguous comments to determine if they indicate completed work (resolve thread) or need user decision (ask for help).",
+      "confidence": "high",
+      "tags": ["gtg", "pr-workflow", "comment-classification"],
+      "affectedFiles": [],
+      "provenance": {
+        "source": "conversation",
+        "reference": "PR #27 shepherding",
+        "date": "2026-01-17",
+        "context": "gtg showed AMBIGUOUS for our own fix explanation comment, blocking READY status"
+      }
+    }
+  ]
+}
