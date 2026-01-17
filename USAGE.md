@@ -67,6 +67,8 @@ gtg <pr_number> --repo <owner/repo> [OPTIONS]
 | `--verbose`, `-v` | Show detailed output (includes ambiguous comments) |
 | `-q`, `--quiet` | Quiet mode: no output, use semantic exit codes (like `grep -q`) |
 | `--semantic-codes` | Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error) |
+| `--state-path` | SQLite state persistence path (default: `.goodtogo/state.db`) |
+| `--refresh` | Force complete rescan, ignoring persisted state |
 | `--version` | Show version number |
 
 #### Examples
@@ -92,6 +94,9 @@ gtg 123 --repo myorg/myrepo --cache none
 
 # Use Redis cache
 gtg 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
+
+# Force rescan, ignoring persisted state
+gtg 123 --repo myorg/myrepo --refresh
 ```
 
 ## Exit Codes

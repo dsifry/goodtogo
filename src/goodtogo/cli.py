@@ -21,6 +21,7 @@ Example:
     $ gtg 123 --format text --verbose  # human-readable output
     $ gtg 123 -q                       # quiet mode with semantic exit codes
     $ gtg 123 --semantic-codes         # semantic exit codes with output
+    $ gtg 123 --refresh                # force rescan, ignore persisted state
 """
 
 from __future__ import annotations
@@ -34,10 +35,11 @@ from typing import Optional
 import click
 
 from goodtogo import __version__
+from goodtogo.adapters.agent_state import AgentState
 from goodtogo.container import Container
 from goodtogo.core.analyzer import PRAnalyzer
 from goodtogo.core.errors import redact_error
-from goodtogo.core.models import PRAnalysisResult, PRStatus
+from goodtogo.core.models import CommentClassification, PRAnalysisResult, PRStatus
 
 
 def parse_github_remote_url(url: str) -> Optional[tuple[str, str]]:
@@ -174,6 +176,16 @@ AI_FRIENDLY_EXIT_CODES: dict[PRStatus, int] = {
     is_flag=True,
     help="Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error)",
 )
+@click.option(
+    "--state-path",
+    default=".goodtogo/state.db",
+    help="SQLite state persistence path (default: .goodtogo/state.db)",
+)
+@click.option(
+    "--refresh",
+    is_flag=True,
+    help="Force complete rescan, ignoring persisted state",
+)
 @click.version_option(version=__version__)
 def main(
     pr_number: int,
@@ -186,6 +198,8 @@ def main(
     exclude_checks: tuple[str, ...],
     quiet: bool,
     semantic_codes: bool,
+    state_path: str,
+    refresh: bool,
 ) -> None:
     """Check if a PR is ready to merge.
 
@@ -238,8 +252,19 @@ def main(
             cache_path=cache_path,
             redis_url=redis_url,
         )
-        analyzer = PRAnalyzer(container)
+
+        # Create AgentState for persistence (unless --refresh is used)
+        pr_key = f"{owner}/{repo_name}:{pr_number}"
+        agent_state: Optional[AgentState] = None
+        if not refresh:
+            agent_state = AgentState(state_path)
+
+        analyzer = PRAnalyzer(container, agent_state=agent_state, pr_key=pr_key)
         result = analyzer.analyze(owner, repo_name, pr_number, exclude_checks=set(exclude_checks))
+
+        # Auto-persist classifications to state (if state is enabled)
+        if agent_state is not None:
+            _persist_classifications(agent_state, pr_key, result)
     except Exception as e:
         # Redact sensitive data from error messages
         redacted = redact_error(e)
@@ -305,6 +330,42 @@ def _print_text_output(result: PRAnalysisResult, verbose: bool) -> None:
             if len(comment.body) > 80:
                 body_preview += "..."
             click.echo(f"   - [{comment.author}] {body_preview}")
+
+
+def _persist_classifications(
+    agent_state: AgentState, pr_key: str, result: PRAnalysisResult
+) -> None:
+    """Persist NON_ACTIONABLE comments and resolved threads to state.
+
+    This allows subsequent runs to skip re-evaluating comments that have
+    already been determined to be non-actionable, and threads that have
+    been resolved.
+
+    Args:
+        agent_state: The AgentState instance for persistence.
+        pr_key: PR identifier in format "owner/repo:pr_number".
+        result: The PR analysis result containing classified comments.
+    """
+    # Persist NON_ACTIONABLE comments as dismissed
+    for comment in result.comments:
+        if comment.classification == CommentClassification.NON_ACTIONABLE:
+            # Only persist if not already dismissed (avoid duplicate writes)
+            if not agent_state.is_comment_dismissed(pr_key, comment.id):
+                agent_state.dismiss_comment(pr_key, comment.id, reason="auto:non_actionable")
+
+    # Persist resolved threads
+    # Note: We track resolved threads so we can skip them on subsequent runs
+    # Thread IDs come from comment thread_id fields where is_resolved=True
+    resolved_thread_ids: set[str] = set()
+    for comment in result.comments:
+        if comment.thread_id and comment.is_resolved:
+            resolved_thread_ids.add(comment.thread_id)
+
+    # Check already resolved threads once before the loop
+    already_resolved = agent_state.get_resolved_threads(pr_key)
+    for thread_id in resolved_thread_ids:
+        if thread_id not in already_resolved:
+            agent_state.mark_thread_resolved(pr_key, thread_id)
 
 
 if __name__ == "__main__":  # pragma: no cover
