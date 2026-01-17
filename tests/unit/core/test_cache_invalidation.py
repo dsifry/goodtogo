@@ -835,16 +835,16 @@ class TestCachePreservedWhenStatusIsReady:
         # Verify second call also returns READY
         assert result2.status == PRStatus.READY
 
-        # Verify GitHub API was NOT called again (data came from cache)
+        # Verify GitHub API was NOT called again for comments/reviews (data came from cache)
         assert (
             tracking_github.get_comments_call_count == first_call_comments_count
         ), "Comments API should NOT be called on second analyze (should use cache)"
         assert (
-            tracking_github.get_threads_call_count == first_call_threads_count
-        ), "Threads API should NOT be called on second analyze (should use cache)"
-        assert (
             tracking_github.get_reviews_call_count == first_call_reviews_count
         ), "Reviews API should NOT be called on second analyze (should use cache)"
+        # Note: Threads API is always called due to granular thread caching design.
+        # We always fetch the fresh thread list to detect new threads, but use
+        # cached data for individual resolved threads (stable state).
 
         # Verify cache was used (has hits)
         stats = recording_cache.get_stats()
@@ -1085,3 +1085,366 @@ Security vulnerability: SQL injection possible.
         assert (
             tracking_github.get_comments_call_count > first_call_count
         ), "Comments API should be called again after cache invalidation"
+
+
+class TestGranularCommentCaching:
+    """Tests for granular comment caching (caching NON_ACTIONABLE comments individually)."""
+
+    def test_non_actionable_comments_are_cached_individually(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+        make_comment,
+    ):
+        """When a comment is NON_ACTIONABLE, it should be cached with a granular key."""
+        # Setup: PR with a NON_ACTIONABLE comment
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments([make_comment(comment_id=42, body="LGTM!")])
+        github.set_reviews([])
+        github.set_threads([])
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert
+        assert result.status == PRStatus.READY
+        assert len(result.comments) == 1
+        assert result.comments[0].classification == CommentClassification.NON_ACTIONABLE
+
+        # Verify granular comment cache was set
+        granular_cache_key = "comment:owner:repo:42"
+        granular_cached = any(key == granular_cache_key for key, _, _ in recording_cache.set_calls)
+        assert granular_cached, "NON_ACTIONABLE comment should be cached with granular key"
+
+    def test_actionable_comments_are_not_cached_granularly(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+        make_comment,
+    ):
+        """ACTIONABLE or AMBIGUOUS comments should NOT be cached with granular keys."""
+        # Setup: PR with an AMBIGUOUS comment (parsed by generic parser with unclear intent)
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments(
+            [
+                make_comment(
+                    comment_id=99,
+                    author="reviewer",
+                    body="I think we should consider refactoring this section.",
+                )
+            ]
+        )
+        github.set_reviews([])
+        github.set_threads([])
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert
+        assert result.status == PRStatus.ACTION_REQUIRED
+        assert len(result.ambiguous_comments) == 1
+
+        # Verify granular comment cache was NOT set for AMBIGUOUS comment
+        granular_cache_key = "comment:owner:repo:99"
+        granular_cached = any(key == granular_cache_key for key, _, _ in recording_cache.set_calls)
+        assert not granular_cached, "AMBIGUOUS comment should NOT be cached with granular key"
+
+    def test_granular_cache_used_for_stable_comments(
+        self,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+        make_comment,
+    ):
+        """When PR-level cache is invalidated, granular cache should be used for stable comments."""
+        inner_github = ConfigurableGitHubAdapter()
+        tracking_github = TrackingGitHubAdapter(inner_github)
+
+        # Setup: PR with a NON_ACTIONABLE comment
+        tracking_github.set_pr_data(make_pr_data(number=123))
+        tracking_github.set_comments([make_comment(comment_id=42, body="LGTM!")])
+        tracking_github.set_reviews([])
+        tracking_github.set_threads([])
+        tracking_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=tracking_github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # First analyze - populates both PR-level and granular cache
+        result1 = analyzer.analyze("owner", "repo", 123)
+        assert result1.status == PRStatus.READY
+
+        # Invalidate PR-level comment cache (simulating cache expiry)
+        recording_cache._inner.delete("pr:owner:repo:123:comments")
+
+        # Second analyze - should fetch fresh from GitHub but use granular cache
+        result2 = analyzer.analyze("owner", "repo", 123)
+        assert result2.status == PRStatus.READY
+
+        # Verify granular cache was accessed
+        granular_cache_key = "comment:owner:repo:42"
+        granular_accessed = any(key == granular_cache_key for key in recording_cache.get_calls)
+        assert granular_accessed, "Granular cache should be accessed when PR-level cache is invalid"
+
+    def test_comment_without_id_is_not_cached_granularly(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+    ):
+        """Comments without IDs should not be cached granularly."""
+        # Setup: PR with a comment that has no ID
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments(
+            [
+                {
+                    "id": "",  # Empty ID
+                    "user": {"login": "reviewer"},
+                    "body": "LGTM!",
+                    "path": None,
+                    "line": None,
+                    "in_reply_to_id": None,
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ]
+        )
+        github.set_reviews([])
+        github.set_threads([])
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert - should complete without error
+        assert result.status == PRStatus.READY
+
+        # Verify no granular cache with empty key was set
+        empty_key_cached = any(
+            key.startswith("comment:owner:repo:") and key.endswith(":")
+            for key, _, _ in recording_cache.set_calls
+        )
+        assert not empty_key_cached, "Comment without ID should not create cache entry"
+
+
+class TestGranularThreadCaching:
+    """Tests for granular thread caching (caching resolved threads individually)."""
+
+    def test_resolved_threads_are_cached_individually(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+    ):
+        """When a thread is resolved, it should be cached with a granular key."""
+        # Setup: PR with a resolved thread
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments([])
+        github.set_reviews([])
+        github.set_threads(
+            [
+                {
+                    "id": "thread-99",
+                    "is_resolved": True,
+                    "is_outdated": False,
+                    "path": "file.py",
+                }
+            ]
+        )
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert
+        assert result.status == PRStatus.READY
+        assert result.threads.resolved == 1
+
+        # Verify granular thread cache was set
+        granular_cache_key = "thread:owner:repo:thread-99"
+        granular_cached = any(key == granular_cache_key for key, _, _ in recording_cache.set_calls)
+        assert granular_cached, "Resolved thread should be cached with granular key"
+
+    def test_unresolved_threads_are_not_cached_granularly(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+    ):
+        """Unresolved threads should NOT be cached with granular keys."""
+        # Setup: PR with an unresolved thread
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments([])
+        github.set_reviews([])
+        github.set_threads(
+            [
+                {
+                    "id": "thread-88",
+                    "is_resolved": False,
+                    "is_outdated": False,
+                    "path": "file.py",
+                    "comments": [{"author": "reviewer", "body": "Please fix this"}],
+                }
+            ]
+        )
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert
+        assert result.status == PRStatus.UNRESOLVED_THREADS
+        assert result.threads.unresolved == 1
+
+        # Verify granular thread cache was NOT set for unresolved thread
+        granular_cache_key = "thread:owner:repo:thread-88"
+        granular_cached = any(key == granular_cache_key for key, _, _ in recording_cache.set_calls)
+        assert not granular_cached, "Unresolved thread should NOT be cached with granular key"
+
+    def test_granular_cache_used_for_resolved_threads(
+        self,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+    ):
+        """When PR-level cache is invalidated, granular cache is used for resolved threads."""
+        inner_github = ConfigurableGitHubAdapter()
+        tracking_github = TrackingGitHubAdapter(inner_github)
+
+        # Setup: PR with a resolved thread
+        tracking_github.set_pr_data(make_pr_data(number=123))
+        tracking_github.set_comments([])
+        tracking_github.set_reviews([])
+        tracking_github.set_threads(
+            [
+                {
+                    "id": "thread-77",
+                    "is_resolved": True,
+                    "is_outdated": False,
+                    "path": "file.py",
+                }
+            ]
+        )
+        tracking_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=tracking_github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # First analyze - populates both PR-level and granular cache
+        result1 = analyzer.analyze("owner", "repo", 123)
+        assert result1.status == PRStatus.READY
+
+        # Invalidate PR-level thread cache (simulating cache expiry)
+        recording_cache._inner.delete("pr:owner:repo:123:threads")
+
+        # Second analyze - should fetch fresh from GitHub but use granular cache
+        result2 = analyzer.analyze("owner", "repo", 123)
+        assert result2.status == PRStatus.READY
+
+        # Verify granular cache was accessed
+        granular_cache_key = "thread:owner:repo:thread-77"
+        granular_accessed = any(key == granular_cache_key for key in recording_cache.get_calls)
+        assert granular_accessed, "Granular cache should be accessed when PR-level cache is invalid"
+
+    def test_thread_without_id_is_not_cached_granularly(
+        self,
+        github: ConfigurableGitHubAdapter,
+        recording_cache: RecordingCacheAdapter,
+        time_provider: MockTimeProvider,
+        make_pr_data,
+        make_ci_status,
+    ):
+        """Threads without IDs should not be cached granularly."""
+        # Setup: PR with a thread that has no ID
+        github.set_pr_data(make_pr_data(number=123))
+        github.set_comments([])
+        github.set_reviews([])
+        github.set_threads(
+            [
+                {
+                    "id": "",  # Empty ID
+                    "is_resolved": True,
+                    "is_outdated": False,
+                    "path": "file.py",
+                }
+            ]
+        )
+        github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        # Act
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Assert - should complete without error
+        assert result.status == PRStatus.READY
+
+        # Verify no granular cache with empty key was set
+        empty_key_cached = any(
+            key.startswith("thread:owner:repo:") and key.endswith(":")
+            for key, _, _ in recording_cache.set_calls
+        )
+        assert not empty_key_cached, "Thread without ID should not create cache entry"
