@@ -318,6 +318,7 @@ class GitHubAdapter(GitHubPort):
                   comments(first: 100) {
                     nodes {
                       id
+                      databaseId
                       body
                       author {
                         login
@@ -372,6 +373,7 @@ class GitHubAdapter(GitHubPort):
                     "comments": [
                         {
                             "id": c.get("id"),
+                            "database_id": c.get("databaseId"),
                             "body": c.get("body", ""),
                             "author": c.get("author", {}).get("login", "unknown"),
                             "created_at": c.get("createdAt"),

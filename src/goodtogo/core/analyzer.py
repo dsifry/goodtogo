@@ -604,13 +604,21 @@ class PRAnalyzer:
         all_comments: list[Comment] = []
         outside_diff_comments: list[OutsideDiffComment] = []
 
-        # Build thread resolution map
-        thread_resolution = {}
-        thread_outdated = {}
+        # Build thread resolution map: comment database_id -> thread status
+        # This maps each comment's database ID to its thread's resolution/outdated status
+        # so we can look up resolution status when classifying REST API comments
+        thread_resolution: dict[str, bool] = {}
+        thread_outdated: dict[str, bool] = {}
         for thread in threads_data:
-            thread_id = thread.get("id", "")
-            thread_resolution[thread_id] = thread.get("is_resolved", False)
-            thread_outdated[thread_id] = thread.get("is_outdated", False)
+            is_resolved = thread.get("is_resolved", False)
+            is_outdated = thread.get("is_outdated", False)
+            # Map each comment in the thread to the thread's status
+            for thread_comment in thread.get("comments", []):
+                # Use database_id to match REST API comment IDs
+                db_id = thread_comment.get("database_id")
+                if db_id is not None:
+                    thread_resolution[str(db_id)] = is_resolved
+                    thread_outdated[str(db_id)] = is_outdated
 
         # Process inline comments
         for comment_data in comments_data:
@@ -673,8 +681,8 @@ class PRAnalyzer:
 
         Args:
             comment_data: Dictionary containing comment data.
-            thread_resolution: Map of thread ID to resolution status.
-            thread_outdated: Map of thread ID to outdated status.
+            thread_resolution: Map of comment database ID to resolution status.
+            thread_outdated: Map of comment database ID to outdated status.
 
         Returns:
             Classified Comment object.
@@ -686,9 +694,10 @@ class PRAnalyzer:
         if thread_id:
             thread_id = str(thread_id)
 
-        # Determine thread status
-        is_resolved = thread_resolution.get(thread_id, False) if thread_id else False
-        is_outdated = thread_outdated.get(thread_id, False) if thread_id else False
+        # Determine thread status by looking up the comment's own ID
+        # in the resolution map (which is keyed by comment database_id)
+        is_resolved = thread_resolution.get(comment_id, False)
+        is_outdated = thread_outdated.get(comment_id, False)
 
         # Identify reviewer type
         reviewer_type = self._identify_reviewer_type(author, body)

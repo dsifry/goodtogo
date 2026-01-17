@@ -1,7 +1,8 @@
 """Tests for PRAnalyzer with classification persistence.
 
 This module tests the integration of AgentState's dismissal persistence
-with the PRAnalyzer's comment classification flow.
+with the PRAnalyzer's comment classification flow, and thread resolution
+mapping behavior.
 """
 
 import os
@@ -12,7 +13,7 @@ import pytest
 from goodtogo.adapters.agent_state import AgentState
 from goodtogo.container import Container
 from goodtogo.core.analyzer import PRAnalyzer
-from goodtogo.core.models import CommentClassification, Priority
+from goodtogo.core.models import CommentClassification, Priority, PRStatus
 
 
 class TestAnalyzerDismissalIntegration:
@@ -396,3 +397,215 @@ This PR looks good overall.
         assert len(result.outside_diff_comments) == 2
         file_paths = {c.file_path for c in result.outside_diff_comments}
         assert file_paths == {"src/config.py", "src/utils.py"}
+
+
+class TestThreadResolutionMapping:
+    """Tests for thread resolution status affecting comment classification.
+
+    When a comment belongs to a resolved thread on GitHub, the comment should
+    be classified as NON_ACTIONABLE regardless of severity markers in the text.
+    This mapping uses the comment's database ID to match against thread comments.
+    """
+
+    def test_resolved_thread_comment_classified_as_non_actionable(
+        self, mock_github, make_pr_data, make_ci_status, make_comment, make_thread
+    ):
+        """Test that a comment in a resolved thread is classified as NON_ACTIONABLE.
+
+        This tests the mapping between REST API comments (with database IDs) and
+        GraphQL thread resolution status.
+        """
+        # Comment with High Severity marker that would normally be ACTIONABLE
+        comment = make_comment(
+            comment_id=12345,  # Database ID from REST API
+            author="cursor[bot]",
+            body="High Severity: This is a critical issue!",
+            path="src/main.py",
+            line=10,
+        )
+
+        # Thread containing this comment, marked as resolved
+        # The thread comment's database_id matches the comment's id
+        thread = make_thread(
+            thread_id="PRRT_kwDOTest123",
+            is_resolved=True,
+            path="src/main.py",
+            line=10,
+            comments=[
+                {
+                    "id": "PRRC_kwDOComment123",
+                    "database_id": 12345,  # Matches comment_id above
+                    "body": "High Severity: This is a critical issue!",
+                    "author": "cursor[bot]",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        )
+
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([comment])
+        mock_github.set_reviews([])
+        mock_github.set_threads([thread])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # The comment should be classified as NON_ACTIONABLE because
+        # its thread is resolved, even though it has "High Severity" marker
+        assert len(result.actionable_comments) == 0
+        assert result.status == PRStatus.READY
+
+    def test_unresolved_thread_comment_respects_severity(
+        self, mock_github, make_pr_data, make_ci_status, make_comment, make_thread
+    ):
+        """Test that a comment in an unresolved thread respects severity markers."""
+        comment = make_comment(
+            comment_id=12345,
+            author="cursor[bot]",
+            body="High Severity: This is a critical issue!",
+            path="src/main.py",
+            line=10,
+        )
+
+        thread = make_thread(
+            thread_id="PRRT_kwDOTest123",
+            is_resolved=False,  # NOT resolved
+            path="src/main.py",
+            line=10,
+            comments=[
+                {
+                    "id": "PRRC_kwDOComment123",
+                    "database_id": 12345,
+                    "body": "High Severity: This is a critical issue!",
+                    "author": "cursor[bot]",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        )
+
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([comment])
+        mock_github.set_reviews([])
+        mock_github.set_threads([thread])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # The comment should be ACTIONABLE since thread is not resolved
+        assert len(result.actionable_comments) == 1
+        assert result.actionable_comments[0].id == "12345"
+
+    def test_outdated_thread_comment_classified_as_non_actionable(
+        self, mock_github, make_pr_data, make_ci_status, make_comment, make_thread
+    ):
+        """Test that a comment in an outdated thread is classified as NON_ACTIONABLE."""
+        comment = make_comment(
+            comment_id=12345,
+            author="cursor[bot]",
+            body="Medium Severity: Should fix this.",
+            path="src/main.py",
+            line=10,
+        )
+
+        thread = make_thread(
+            thread_id="PRRT_kwDOTest123",
+            is_resolved=False,
+            is_outdated=True,  # Outdated (code changed)
+            path="src/main.py",
+            line=10,
+            comments=[
+                {
+                    "id": "PRRC_kwDOComment123",
+                    "database_id": 12345,
+                    "body": "Medium Severity: Should fix this.",
+                    "author": "cursor[bot]",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        )
+
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([comment])
+        mock_github.set_reviews([])
+        mock_github.set_threads([thread])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # The comment should be NON_ACTIONABLE since thread is outdated
+        assert len(result.actionable_comments) == 0
+
+    def test_multiple_comments_in_mixed_threads(
+        self, mock_github, make_pr_data, make_ci_status, make_comment, make_thread
+    ):
+        """Test handling of multiple comments with some in resolved threads."""
+        # Two comments - one in resolved thread, one in unresolved
+        resolved_comment = make_comment(
+            comment_id=111,
+            author="cursor[bot]",
+            body="High Severity: Resolved issue.",
+            path="src/resolved.py",
+            line=10,
+        )
+        unresolved_comment = make_comment(
+            comment_id=222,
+            author="cursor[bot]",
+            body="High Severity: Unresolved issue.",
+            path="src/unresolved.py",
+            line=20,
+        )
+
+        resolved_thread = make_thread(
+            thread_id="PRRT_resolved",
+            is_resolved=True,
+            path="src/resolved.py",
+            line=10,
+            comments=[
+                {
+                    "id": "PRRC_111",
+                    "database_id": 111,
+                    "body": "High Severity: Resolved issue.",
+                    "author": "cursor[bot]",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        )
+        unresolved_thread = make_thread(
+            thread_id="PRRT_unresolved",
+            is_resolved=False,
+            path="src/unresolved.py",
+            line=20,
+            comments=[
+                {
+                    "id": "PRRC_222",
+                    "database_id": 222,
+                    "body": "High Severity: Unresolved issue.",
+                    "author": "cursor[bot]",
+                    "created_at": "2024-01-15T10:00:00Z",
+                }
+            ],
+        )
+
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([resolved_comment, unresolved_comment])
+        mock_github.set_reviews([])
+        mock_github.set_threads([resolved_thread, unresolved_thread])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Only the unresolved comment should be actionable
+        assert len(result.actionable_comments) == 1
+        assert result.actionable_comments[0].id == "222"
