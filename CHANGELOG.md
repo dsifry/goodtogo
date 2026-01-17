@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-01-17
+
+### Features
+
+- feat: Use template method pattern to handle resolved threads in all parsers
+- feat: Classify PR summary comments as NON_ACTIONABLE
+
+### Bug Fixes
+
+- fix: Map comment database IDs to thread resolution status
+
+This release fixes a critical bug where resolved threads were still being classified
+as actionable. The fix ensures that all parsers respect GitHub's thread resolution
+status, and adds patterns to recognize PR-level summary comments from Claude and
+Cursor as non-actionable.
+
 ## [0.6.0] - 2026-01-17
 
 ### Features
