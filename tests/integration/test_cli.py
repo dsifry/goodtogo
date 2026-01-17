@@ -1517,3 +1517,30 @@ class TestGetRepoFromGitOrigin:
             result = get_repo_from_git_origin()
 
         assert result is None
+
+    def test_returns_none_when_git_not_installed(self):
+        """Should return None when git is not installed (FileNotFoundError)."""
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("git not found")
+
+            result = get_repo_from_git_origin()
+
+        assert result is None
+
+    def test_returns_none_when_git_times_out(self):
+        """Should return None when git command times out."""
+        import subprocess
+
+        from goodtogo.cli import get_repo_from_git_origin
+
+        with patch("goodtogo.cli.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                cmd=["git", "remote", "get-url", "origin"],
+                timeout=5,
+            )
+
+            result = get_repo_from_git_origin()
+
+        assert result is None

@@ -82,7 +82,8 @@ def get_repo_from_git_origin() -> Optional[tuple[str, str]]:
 
     Returns:
         Tuple of (owner, repo) if origin is a valid GitHub URL,
-        None if not in a git repo, no origin remote, or origin isn't GitHub.
+        None if not in a git repo, no origin remote, origin isn't GitHub,
+        git is not installed, or the command times out.
     """
     try:
         result = subprocess.run(
@@ -90,11 +91,12 @@ def get_repo_from_git_origin() -> Optional[tuple[str, str]]:
             capture_output=True,
             text=True,
             check=True,
+            timeout=5,
         )
         origin_url = result.stdout.strip()
         return parse_github_remote_url(origin_url)
-    except subprocess.CalledProcessError:
-        # No origin remote or not a git repo
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        # No origin remote, not a git repo, git not installed, or timeout
         return None
 
 
