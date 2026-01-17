@@ -389,3 +389,191 @@ class TestCodeRabbitParserSummaryPatterns:
     def test_is_tip_content_no_match(self, parser: CodeRabbitParser) -> None:
         """Test _is_tip_content returns False for non-matching text."""
         assert parser._is_tip_content("> Quote") is False
+
+    def test_inline_comment_with_walkthrough_is_non_actionable(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test inline comment with walkthrough content is NON_ACTIONABLE.
+
+        Even inline comments (with path set) that contain walkthrough/summary
+        content should be NON_ACTIONABLE - this tests the body-level check.
+        """
+        body = "## Walkthrough\n\nThis summarizes the changes."
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+
+class TestCodeRabbitParserPRLevelSummaryComments:
+    """Tests for PR-level summary comment detection.
+
+    PR-level summary comments are posted by CodeRabbit at the PR level (not inline)
+    and contain overview information. These should be classified as NON_ACTIONABLE
+    because the actual actionable items are in inline comments.
+    """
+
+    @pytest.fixture
+    def parser(self) -> CodeRabbitParser:
+        """Create a CodeRabbitParser instance."""
+        return CodeRabbitParser()
+
+    def test_pr_summary_with_actionable_comments_count(self, parser: CodeRabbitParser) -> None:
+        """Test PR-level summary with 'Actionable comments posted: N' is NON_ACTIONABLE.
+
+        This is the main summary comment posted by CodeRabbit. Even when it says
+        'Actionable comments posted: 1', the summary itself is not actionable -
+        the inline comments are.
+        """
+        body = """<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Summary
+
+Actionable comments posted: 1
+
+## Walkthrough
+
+This PR adds feature X.
+
+| File | Changes |
+|------|---------|
+| foo.py | Added function |
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_zero_actionable_comments(self, parser: CodeRabbitParser) -> None:
+        """Test PR-level summary with 'Actionable comments posted: 0' is NON_ACTIONABLE."""
+        body = """<!-- This is an auto-generated comment by CodeRabbit -->
+
+Actionable comments posted: 0
+
+## Walkthrough
+
+No issues found in this PR.
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_details_sections(self, parser: CodeRabbitParser) -> None:
+        """Test PR-level summary with <details> sections is NON_ACTIONABLE."""
+        body = """<!-- This is an auto-generated comment by CodeRabbit -->
+
+<details>
+<summary>Summary by CodeRabbit</summary>
+
+- Added new feature
+- Fixed bug
+</details>
+
+Actionable comments posted: 2
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_inline_comment_with_actionable_pattern_not_filtered(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test inline comment containing 'Actionable comments' pattern is NOT filtered.
+
+        Inline comments (with path/line) should never be filtered by summary detection,
+        even if they happen to contain similar text patterns.
+        """
+        body = """The previous summary said "Actionable comments posted: 1" but this
+inline comment is addressing the actual issue."""
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        # Should NOT be filtered - this is an inline comment
+        # Without severity markers, it should be AMBIGUOUS
+        assert classification == CommentClassification.AMBIGUOUS
+        assert requires_investigation is True
+
+    def test_pr_summary_walkthrough_only(self, parser: CodeRabbitParser) -> None:
+        """Test PR-level summary with only Walkthrough section is NON_ACTIONABLE."""
+        body = """## Walkthrough
+
+The changes introduce a new parser module for handling Greptile comments.
+
+## Changes
+
+| File | Summary |
+|------|---------|
+| parser.py | New parser implementation |
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_coderabbit_signature(self, parser: CodeRabbitParser) -> None:
+        """Test PR-level summary with CodeRabbit signature HTML comment."""
+        body = """<!-- This is an auto-generated comment by CodeRabbit -->
+
+## Summary
+
+This PR looks good overall.
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_pr_summary_comment_returns_false_for_inline(self, parser: CodeRabbitParser) -> None:
+        """Test _is_pr_summary_comment returns False when path is set."""
+        body = (
+            "<!-- This is an auto-generated comment by CodeRabbit -->\n\n"
+            "Actionable comments posted: 1"
+        )
+        comment = {"body": body, "path": "src/file.py", "line": 10}
+        assert parser._is_pr_summary_comment(comment) is False
+
+    def test_is_pr_summary_comment_returns_true_for_pr_level(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test _is_pr_summary_comment returns True for PR-level summary."""
+        body = (
+            "<!-- This is an auto-generated comment by CodeRabbit -->\n\n"
+            "Actionable comments posted: 1"
+        )
+        comment = {"body": body, "path": None, "line": None}
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_is_pr_summary_comment_with_actionable_count_pattern(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test _is_pr_summary_comment detects 'Actionable comments posted:' pattern."""
+        comment = {
+            "body": "Actionable comments posted: 3\n\n## Walkthrough",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_pr_summary_not_filtered_when_has_severity_marker_inline(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test inline comment with severity marker is still classified correctly.
+
+        Even though the comment might quote summary text, if it has a severity
+        marker and is inline, it should be classified by the severity.
+        """
+        body = "_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_\n\nThis is critical."
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False
