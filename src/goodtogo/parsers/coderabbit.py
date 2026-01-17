@@ -314,6 +314,21 @@ class CodeRabbitParser(ReviewerParser):
                 return True
         return False
 
+    def _has_actionable_severity_markers(self, body: str) -> bool:
+        """Check if body contains actionable severity markers.
+
+        This is used to prevent filtering PR-level comments that contain
+        actual actionable issues with severity markers, even if they also
+        contain summary patterns.
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            True if the body contains Critical or Major severity markers.
+        """
+        return bool(self.CRITICAL_PATTERN.search(body) or self.MAJOR_PATTERN.search(body))
+
     def _is_pr_summary_comment(self, comment: dict) -> bool:
         """Check if this is a PR-level summary comment.
 
@@ -326,6 +341,7 @@ class CodeRabbitParser(ReviewerParser):
         Key criteria:
         1. Must be a PR-level comment (path=None or missing)
         2. Must match one of the PR summary patterns
+        3. Must NOT contain actionable severity markers (Critical/Major)
 
         Args:
             comment: Dictionary containing comment data with 'body' key,
@@ -343,6 +359,11 @@ class CodeRabbitParser(ReviewerParser):
 
         body = comment.get("body", "")
         if not body:
+            return False
+
+        # Safety check: if the comment contains actionable severity markers,
+        # do NOT filter it as a summary - let it be classified by severity
+        if self._has_actionable_severity_markers(body):
             return False
 
         # Check for PR summary patterns
