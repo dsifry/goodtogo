@@ -1,0 +1,21 @@
+title: Good To Go
+description: Deterministic PR readiness detection for AI coding agents
+remote_theme: pages-themes/minimal@v0.2.0
+plugins:
+  - jekyll-remote-theme
+
+# Optional: Custom URL settings
+# url: https://dsifry.github.io
+# baseurl: /goodtogo
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Exclude non-page files from Jekyll processing
+exclude:
+  - AGENT_DATA_NEEDS.md
+  - BEADS_SETUP.md
+  - GITIGNORE_BEST_PRACTICES.md

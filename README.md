@@ -1,100 +1,104 @@
 # Good To Go
 
+[![PyPI version](https://badge.fury.io/py/gtg.svg)](https://badge.fury.io/py/gtg)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/dsifry/goodtogo)
+
 **Deterministic PR readiness detection for AI coding agents**
 
-Good To Go helps AI agents (like Claude Code) know exactly when a PR is ready to merge. No guessing, no polling indefinitely, no missing comments.
+> *"Is the PR ready to merge?"* — Finally, a definitive answer.
 
-## The Problem
+[Documentation](https://dsifry.github.io/goodtogo/) · [PyPI](https://pypi.org/project/gtg/) · [Contributing](CONTRIBUTING.md)
 
-AI agents creating PRs face a common challenge: **How do I know when I'm actually done?**
+---
 
-- CI is still running... is it done yet?
-- CodeRabbit left 12 comments... which ones need action?
-- A reviewer requested changes... did I address them all?
-- There are 3 unresolved threads... are they blocking?
+## Why Good To Go?
 
-Without deterministic answers, agents either wait too long, miss comments, or keep asking "is it ready yet?"
+AI agents can write code, fix bugs, and respond to reviews. But they all struggle with one question: **"Am I done yet?"**
 
-## The Solution
+- CI is running... check again... still running...
+- CodeRabbit left 12 comments — which ones are blocking?
+- Reviewer wrote "consider X" — is that a request or a suggestion?
+- Threads are unresolved — but the fix is already pushed
 
-Good To Go provides **deterministic PR state analysis** via a simple CLI:
-
-```bash
-gtg 123 --repo owner/repo
-```
-
-Returns (default - AI-friendly):
-- **Exit code 0**: Any analyzable state (ready, action required, threads, CI)
-- **Exit code 4**: Error fetching data
-
-For shell scripting, use `-q` for semantic exit codes without output, or `--semantic-codes` for output with semantic codes.
-
-## Installation
+**Good To Go answers this definitively:**
 
 ```bash
-pip install gtg
+gtg 123
 ```
 
-That's it. No other dependencies required.
-
-## Usage
-
-### Basic Check
-
-```bash
-# Check if PR #123 in myorg/myrepo is ready to merge
-gtg 123 --repo myorg/myrepo
-
-# With JSON output for programmatic use
-gtg 123 --repo myorg/myrepo --format json
-
-# Human-readable text format
-gtg 123 --repo myorg/myrepo --format text
-```
-
-### Authentication
-
-Set your GitHub token:
-
-```bash
-export GITHUB_TOKEN=ghp_your_token_here
-```
-
-Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` flag for security reasons.
-
-### Exit Codes
-
-**Default (AI-friendly)** - returns 0 for all analyzable states:
-
-| Code | Meaning |
-|------|---------|
-| 0 | Any analyzable state (parse the JSON `status` field for details) |
-| 4 | Error fetching PR data |
-
-**With `-q` or `--semantic-codes`** - returns different codes per status:
-
-| Code | Status | Meaning |
-|------|--------|---------|
-| 0 | READY | All clear - good to go! |
-| 1 | ACTION_REQUIRED | Actionable comments need fixes |
-| 2 | UNRESOLVED | Unresolved review threads |
-| 3 | CI_FAILING | CI/CD checks failing |
-| 4 | ERROR | Error fetching PR data |
-
-Use `-q` (quiet mode) for shell scripts that only need the exit code.
-
-### Quick Examples
-
-Here's what the output looks like for each status (using `--format text`):
-
-**READY** - All clear, ready to merge:
 ```
 OK PR #123: READY
    CI: success (5/5 passed)
    Threads: 3/3 resolved
 ```
 
-**ACTION_REQUIRED** - Actionable comments need attention:
+One command. One status. No guessing.
+
+## How It Works
+
+```mermaid
+flowchart LR
+    PR[Pull Request] --> GTG[gtg]
+    GTG --> CI[CI Status]
+    GTG --> Comments[Comment Analysis]
+    GTG --> Threads[Thread Resolution]
+
+    CI --> Status{Status}
+    Comments --> Status
+    Threads --> Status
+
+    Status --> READY[✓ READY]
+    Status --> ACTION[! ACTION_REQUIRED]
+    Status --> UNRESOLVED[? UNRESOLVED_THREADS]
+    Status --> FAILING[✗ CI_FAILING]
+```
+
+Good To Go combines three analyses:
+
+| Analysis | What It Does |
+|----------|--------------|
+| **CI Status** | Aggregates all checks into pass/fail/pending |
+| **Comment Classification** | Identifies actionable vs. informational comments |
+| **Thread Resolution** | Tracks which discussions are truly blocking |
+
+### Intelligent Comment Classification
+
+Not all comments need action. Good To Go classifies each one:
+
+| Classification | Examples | Action |
+|---------------|----------|--------|
+| **ACTIONABLE** | "Critical: SQL injection vulnerability" | Must fix |
+| **NON_ACTIONABLE** | "LGTM!", nitpicks, resolved items | Ignore |
+| **AMBIGUOUS** | "Consider using X", questions | Human review |
+
+Built-in support for: **CodeRabbit**, **Greptile**, **Claude**, **Cursor/Bugbot**
+
+## Quick Start
+
+```bash
+# Install
+pip install gtg
+
+# Set GitHub token
+export GITHUB_TOKEN=ghp_...
+
+# Check a PR (auto-detects repo)
+gtg 123
+
+# Explicit repo
+gtg 123 --repo owner/repo
+```
+
+## Output Formats
+
+### Text (Human-Readable)
+
+```bash
+gtg 123 --format text
+```
+
 ```
 !! PR #456: ACTION_REQUIRED
    CI: success (5/5 passed)
@@ -102,139 +106,105 @@ OK PR #123: READY
 
 Action required:
    - Fix CRITICAL comment from coderabbit in src/db.py:42
-   - 2 comments require investigation (ambiguous)
 ```
 
-**UNRESOLVED_THREADS** - Review threads need resolution:
-```
-?? PR #789: UNRESOLVED_THREADS
-   CI: success (5/5 passed)
-   Threads: 2/4 resolved
-
-Action required:
-   - 2 unresolved review threads need attention
-```
-
-**CI_FAILING** - CI checks not passing:
-```
-XX PR #101: CI_FAILING
-   CI: failure (3/5 passed)
-   Threads: 2/2 resolved
-
-Action required:
-   - CI checks are failing - fix build/test errors
-```
-
-### Text Format Status Icons
-
-| Icon | Status | Meaning |
-|------|--------|---------|
-| `OK` | READY | All clear - good to go! |
-| `!!` | ACTION_REQUIRED | Actionable comments need fixes |
-| `??` | UNRESOLVED_THREADS | Unresolved review threads |
-| `XX` | CI_FAILING | CI/CD checks failing |
-| `##` | ERROR | Error fetching PR data |
-
-### JSON Output
+### JSON (For Agents)
 
 ```bash
-gtg 123 --repo myorg/myrepo --format json
+gtg 123 --format json
 ```
 
-Returns structured data including:
-- CI status (passed/failed/pending checks)
-- Thread summary (resolved/unresolved counts)
-- Classified comments (actionable vs non-actionable)
-- Action items list
-
-See [USAGE.md](USAGE.md) for full JSON schema and examples.
-
-### GitHub Actions & Branch Protection
-
-Make `gtg` a required check to block merging until PRs are truly ready:
-
-```bash
-# Enable branch protection with gtg-check as required
-# Use actual job names from your CI workflow, not the workflow name
-gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
+```json
 {
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["Lint & Format", "Tests (3.9)", "Type Check", "gtg-check"]
-  },
-  "enforce_admins": true,
-  "required_pull_request_reviews": null,
-  "restrictions": null,
-  "allow_force_pushes": false
+  "status": "ACTION_REQUIRED",
+  "action_items": ["Fix CRITICAL comment from coderabbit in src/db.py:42"],
+  "actionable_comments": [...],
+  "ci_status": {"state": "success", "passed": 5, "total_checks": 5}
 }
-EOF
 ```
 
-> **Note**: Use actual **job names** (e.g., `"Lint & Format"`) not workflow names (e.g., `"Tests & Quality"`).
-> `enforce_admins: true` means admins must follow all rules. See [USAGE.md](USAGE.md#configuration-options) for details.
+## Exit Codes
 
-See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions workflow setup.
+**Default (AI-friendly)** — parse the JSON for details:
 
-## Supported Automated Reviewers
+| Code | Meaning |
+|------|---------|
+| 0 | Any analyzable state |
+| 4 | Error |
 
-Good To Go recognizes and classifies comments from:
+**With `-q` or `--semantic-codes`** — for shell scripts:
 
-- **CodeRabbit** - Critical/Major/Minor/Trivial severity
-- **Greptile** - Actionable comment detection (`greptile[bot]`, `greptile-apps[bot]`)
-- **Claude** - Blocking/approval pattern detection (`claude[bot]`, `claude-code[bot]`)
-- **Cursor/Bugbot** - Severity-based classification
-- **Generic** - Fallback for unknown reviewers
+| Code | Status |
+|------|--------|
+| 0 | READY |
+| 1 | ACTION_REQUIRED |
+| 2 | UNRESOLVED_THREADS |
+| 3 | CI_FAILING |
+| 4 | ERROR |
+
+## Use as CI Gate
+
+Make `gtg` a required check to block merges until PRs are truly ready:
+
+```yaml
+# .github/workflows/pr-check.yml
+- name: Check PR readiness
+  run: gtg ${{ github.event.pull_request.number }} --semantic-codes
+```
+
+See [USAGE.md](USAGE.md#github-actions-integration) for full workflow setup.
 
 ## For AI Agents
-
-If you're an AI agent, use Good To Go in your PR workflow:
 
 ```python
 import subprocess
 import json
 
 result = subprocess.run(
-    ["gtg", "123", "--repo", "owner/repo", "--format", "json"],
-    capture_output=True,
-    text=True
+    ["gtg", "123", "--format", "json"],
+    capture_output=True, text=True
 )
+data = json.loads(result.stdout)
 
-if result.returncode == 0:
-    print("Good to go! Ready to merge.")
-elif result.returncode == 1:
-    data = json.loads(result.stdout)
-    print(f"Action required: {data['action_items']}")
+if data["status"] == "READY":
+    print("Merge it!")
+else:
+    for item in data["action_items"]:
+        print(f"TODO: {item}")
 ```
 
-Or use the Python API directly:
+Or use the Python API:
 
 ```python
 from goodtogo import PRAnalyzer, Container
 
 container = Container.create_default(github_token="ghp_...")
 analyzer = PRAnalyzer(container)
-
 result = analyzer.analyze("owner", "repo", 123)
-if result.status == "READY":
-    print("Good to go!")
-else:
-    for item in result.action_items:
-        print(f"- {item}")
+```
+
+## State Persistence
+
+Track handled comments across sessions:
+
+```bash
+gtg 123 --state-path .goodtogo/state.db  # Remember dismissed comments
+gtg 123 --refresh                         # Force fresh analysis
 ```
 
 ## Documentation
 
-- [USAGE.md](USAGE.md) - Detailed CLI usage and examples
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Development setup and contribution guide
+- **[Landing Page](https://dsifry.github.io/goodtogo/)** — Philosophy and vision
+- **[USAGE.md](USAGE.md)** — Complete CLI reference
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Development guide
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Credits
-
-Created by [David Sifry](https://github.com/dsifry) with Claude Code.
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
-**Made with Claude Code**
+<p align="center">
+  <strong>Made with Claude Code</strong><br>
+  <em>by <a href="https://github.com/dsifry">David Sifry</a></em>
+</p>
