@@ -181,13 +181,13 @@ class PRAnalyzer:
             }
             actionable_comments.sort(key=lambda c: priority_order[c.priority])
 
-            # Step 8: Generate action items
-            action_items = self._generate_action_items(
-                actionable_comments, ambiguous_comments, threads_data, ci_data
-            )
-
-            # Build CI status model
+            # Build CI status model (before action items so we use filtered state)
             ci_status = self._build_ci_status(ci_data, exclude_checks or set())
+
+            # Step 8: Generate action items using filtered CI state
+            action_items = self._generate_action_items(
+                actionable_comments, ambiguous_comments, threads_data, ci_status
+            )
 
             # Build thread summary
             threads = self._build_thread_summary(threads_data)
@@ -708,7 +708,7 @@ class PRAnalyzer:
         actionable_comments: list[Comment],
         ambiguous_comments: list[Comment],
         threads_data: list[dict[str, Any]],
-        ci_data: dict[str, Any],
+        ci_status: CIStatus,
     ) -> list[str]:
         """Generate human-readable action items.
 
@@ -716,18 +716,17 @@ class PRAnalyzer:
             actionable_comments: List of actionable comments.
             ambiguous_comments: List of ambiguous comments.
             threads_data: List of thread data.
-            ci_data: CI status data.
+            ci_status: Filtered CI status (with excluded checks removed).
 
         Returns:
             List of human-readable action item strings.
         """
         action_items: list[str] = []
 
-        # CI status items
-        state = ci_data.get("state", "pending")
-        if state == "pending":
+        # CI status items (using filtered state that respects --exclude-checks)
+        if ci_status.state == "pending":
             action_items.append("CI checks are still running - wait for completion")
-        elif state == "failure":
+        elif ci_status.state == "failure":
             action_items.append("CI checks are failing - fix build/test errors")
 
         # Thread items
