@@ -39,6 +39,7 @@ class ClaudeCodeParser(ReviewerParser):
 
     # Author patterns that identify Claude Code comments
     _AUTHOR_PATTERNS: tuple[str, ...] = (
+        "claude[bot]",
         "claude-code[bot]",
         "anthropic-claude[bot]",
     )
@@ -63,6 +64,21 @@ class ClaudeCodeParser(ReviewerParser):
         re.compile(r"\blooks\s+good\b", re.IGNORECASE),
         re.compile(r"\bapproved?\b", re.IGNORECASE),
         re.compile(r"\bship\s+it\b", re.IGNORECASE),
+    )
+
+    # Patterns indicating task completion summaries (non-actionable)
+    # These are automated review summaries, not actionable comments
+    _SUMMARY_PATTERNS: tuple[re.Pattern[str], ...] = (
+        # "**Claude finished @username's task**" header (username can have hyphens)
+        re.compile(r"\*\*Claude finished @[\w-]+'s task\*\*", re.IGNORECASE),
+        # "Claude finished reviewing" pattern
+        re.compile(r"Claude finished reviewing", re.IGNORECASE),
+        # Review summary headers
+        re.compile(r"^###?\s*(?:PR\s+)?Review(?:\s+Summary)?:", re.MULTILINE | re.IGNORECASE),
+        # Recommendation line at end of reviews
+        re.compile(r"^##?\s*Recommendation\s*$", re.MULTILINE | re.IGNORECASE),
+        # "Overall Assessment" sections
+        re.compile(r"^##?\s*Overall Assessment\s*$", re.MULTILINE | re.IGNORECASE),
     )
 
     # Patterns indicating ambiguous/suggestion comments (case-insensitive)
@@ -127,7 +143,16 @@ class ClaudeCodeParser(ReviewerParser):
         """
         body = comment.get("body", "")
 
-        # Check for actionable patterns first (highest priority)
+        # Check for task completion summaries first (these are informational)
+        for pattern in self._SUMMARY_PATTERNS:
+            if pattern.search(body):
+                return (
+                    CommentClassification.NON_ACTIONABLE,
+                    Priority.UNKNOWN,
+                    False,
+                )
+
+        # Check for actionable patterns (highest priority for non-summary comments)
         for pattern in self._ACTIONABLE_PATTERNS:
             if pattern.search(body):
                 return (

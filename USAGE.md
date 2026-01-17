@@ -418,3 +418,183 @@ from goodtogo import (
     CIStatus,        # CI status model
 )
 ```
+
+## GitHub Actions Integration
+
+You can run `gtg` as a GitHub Actions check to gate PR merges.
+
+### Example Workflow
+
+Create `.github/workflows/pr-check.yml`:
+
+```yaml
+name: PR Readiness Check
+
+on:
+  workflow_run:
+    workflows: ["Tests & Quality"]  # Run after your CI workflow
+    types: [completed]
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  gtg-check:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get PR number
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh api \
+            repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} \
+            --jq '.pull_requests[0].number')
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install gtg
+        run: pip install gtg
+
+      - name: Run gtg check
+        id: gtg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          # Exclude gtg-check to avoid circular dependency
+          gtg ${{ steps.pr.outputs.pr_number }} \
+            --repo ${{ github.repository }} \
+            --format json \
+            --semantic-codes \
+            --exclude-checks gtg-check > gtg-result.json
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Post status to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          case "${{ steps.gtg.outputs.exit_code }}" in
+            0) STATE="success"; DESC="Good to Go!" ;;
+            1) STATE="failure"; DESC="Action Required" ;;
+            2) STATE="failure"; DESC="Unresolved Threads" ;;
+            3) STATE="failure"; DESC="CI Failing" ;;
+            *) STATE="failure"; DESC="Error" ;;
+          esac
+
+          gh api repos/${{ github.repository }}/statuses/${{ github.event.workflow_run.head_sha }} \
+            -f state="$STATE" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f description="$DESC" \
+            -f context="gtg-check"
+```
+
+### Key Points
+
+- **Run after CI**: Use `workflow_run` to trigger after your tests complete
+- **Exclude self**: Use `--exclude-checks gtg-check` to avoid circular dependency
+- **Post status**: Creates a commit status that can be required for merging
+
+## Branch Protection
+
+Make `gtg` a required check to prevent merging PRs that aren't ready.
+
+### Using GitHub CLI
+
+```bash
+# Enable branch protection with gtg-check as required
+gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Tests & Quality", "gtg-check"]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false
+}
+EOF
+```
+
+> **Note**: The defaults above provide maximum protection. See Configuration Options
+> below for how to customize these settings.
+
+### Configuration Options
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `required_status_checks.strict` | `true` | Require branches to be up to date before merging |
+| `required_status_checks.contexts` | `["gtg-check"]` | Status checks that must pass |
+| `enforce_admins` | `true` | **When `true`**: Admins must follow all rules (no bypass). **When `false`**: Admins can merge without passing checks, push directly to main, etc. |
+| `allow_force_pushes` | `false` | **When `false`**: Force pushes to main are blocked for everyone. **When `true`**: Force pushes allowed (useful for rebasing, but can rewrite history). |
+
+**Common customizations:**
+- **Solo developer who needs flexibility**: Set `enforce_admins: false` to bypass checks when needed
+- **Need to rebase/squash on main**: Set `allow_force_pushes: true` (only works if you're admin with `enforce_admins: false`)
+- **Team environment**: Keep defaults (`enforce_admins: true`, `allow_force_pushes: false`) for maximum safety
+
+### Using GitHub Web UI
+
+1. Go to **Settings** > **Branches** > **Add branch protection rule**
+2. Set **Branch name pattern** to `main`
+3. Enable **Require status checks to pass before merging**
+4. Search for and select `gtg-check` (and any other required checks)
+5. Enable **Require branches to be up to date before merging**
+6. Optionally disable **Include administrators** to allow admin bypass
+7. Click **Create** or **Save changes**
+
+### Verifying Protection
+
+```bash
+# Check current branch protection settings
+gh api repos/OWNER/REPO/branches/main/protection
+```
+
+Example output (with recommended defaults):
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Tests & Quality", "gtg-check"]
+  },
+  "enforce_admins": {
+    "enabled": true
+  },
+  "allow_force_pushes": {
+    "enabled": false
+  }
+}
+```
+
+### What Gets Blocked
+
+With `gtg-check` as a required status check:
+
+| Status | Can Merge? |
+|--------|------------|
+| READY | ✅ Yes |
+| ACTION_REQUIRED | ❌ No - fix comments first |
+| UNRESOLVED_THREADS | ❌ No - resolve threads first |
+| CI_FAILING | ❌ No - fix CI first |
+| ERROR | ❌ No - check failed |
+
+This ensures PRs are only merged when:
+- All CI checks are passing
+- All actionable review comments are addressed
+- All review threads are resolved

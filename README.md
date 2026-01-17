@@ -149,6 +149,31 @@ Returns structured data including:
 
 See [USAGE.md](USAGE.md) for full JSON schema and examples.
 
+### GitHub Actions & Branch Protection
+
+Make `gtg` a required check to block merging until PRs are truly ready:
+
+```bash
+# Enable branch protection with gtg-check as required
+gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Tests & Quality", "gtg-check"]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false
+}
+EOF
+```
+
+> **Note**: `enforce_admins: true` means admins must follow all rules. Set to `false` to allow
+> admin bypass. `allow_force_pushes: false` blocks history rewrites. See [USAGE.md](USAGE.md#configuration-options) for details.
+
+See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions workflow setup.
+
 ## Supported Automated Reviewers
 
 Good To Go recognizes and classifies comments from:
