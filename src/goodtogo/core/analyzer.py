@@ -197,6 +197,14 @@ class PRAnalyzer:
                 ci_status, threads, actionable_comments, ambiguous_comments
             )
 
+            # Issue #28: Invalidate volatile data cache for non-READY PRs
+            # Design principle: Only cache data that won't block a gtg check from passing.
+            # If PR is not ready, invalidate comment/thread/review cache to ensure fresh
+            # fetch next time. This prevents stale cache from incorrectly blocking merge.
+            if status != PRStatus.READY:
+                pattern = f"pr:{owner}:{repo}:{pr_number}:*"
+                self._container.cache.invalidate_pattern(pattern)
+
             # Get cache stats
             cache_stats = self._container.cache.get_stats()
 
