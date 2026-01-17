@@ -342,10 +342,17 @@ class PRAnalyzer:
 
             if granular_cached:
                 cached_data = json.loads(granular_cached)
-                if cached_data.get("classification") == "NON_ACTIONABLE":
-                    # Use cached data - it's stable
+                # Check if comment was edited since caching
+                fresh_timestamp = comment.get("updated_at") or comment.get("created_at", "")
+                cached_timestamp = cached_data.get("cached_at", "")
+                if (
+                    cached_data.get("classification") == "NON_ACTIONABLE"
+                    and fresh_timestamp == cached_timestamp
+                ):
+                    # Use cached data - it's stable AND unchanged
                     result.append(cached_data["raw"])
                     continue
+                # Timestamp mismatch means comment was edited - use fresh data
 
             # Use fresh data
             result.append(comment)
@@ -415,10 +422,14 @@ class PRAnalyzer:
 
             if granular_cached:
                 cached_data = json.loads(granular_cached)
-                if cached_data.get("is_resolved", False):
-                    # Use cached data - it's stable
+                # Check if thread was modified since caching
+                fresh_timestamp = thread.get("updated_at") or thread.get("created_at", "")
+                cached_timestamp = cached_data.get("cached_at", "")
+                if cached_data.get("is_resolved", False) and fresh_timestamp == cached_timestamp:
+                    # Use cached data - it's stable AND unchanged
                     result.append(cached_data["raw"])
                     continue
+                # Timestamp mismatch means thread was modified (possibly re-opened)
 
             # Use fresh data
             result.append(thread)
@@ -434,10 +445,11 @@ class PRAnalyzer:
         repo: str,
         thread_data: dict[str, Any],
     ) -> None:
-        """Cache a thread if it's resolved (stable state).
+        """Cache a thread if it's resolved (currently stable state).
 
-        Resolved threads are immutable (cannot be unresolved), so they
-        can be safely cached for a long period to reduce API calls.
+        Resolved threads are typically stable but can be re-opened or modified.
+        We cache them with a timestamp to detect staleness - if the thread's
+        updated_at changes, we'll use fresh data instead of the cache.
 
         Args:
             owner: Repository owner.
@@ -456,6 +468,7 @@ class PRAnalyzer:
             {
                 "raw": thread_data,
                 "is_resolved": True,
+                "cached_at": thread_data.get("updated_at") or thread_data.get("created_at", ""),
             }
         )
         self._container.cache.set(cache_key, cache_value, CACHE_TTL_STABLE_THREAD)
@@ -963,6 +976,7 @@ class PRAnalyzer:
             {
                 "raw": comment_data,
                 "classification": classification.value,
+                "cached_at": comment_data.get("updated_at") or comment_data.get("created_at", ""),
             }
         )
         self._container.cache.set(cache_key, cache_value, CACHE_TTL_STABLE_COMMENT)
