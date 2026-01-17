@@ -207,9 +207,7 @@ class AgentState:
         """
         self._record_action(pr_key, ActionType.ADDRESSED, comment_id, commit_sha)
 
-    def dismiss_comment(
-        self, pr_key: str, comment_id: str, reason: Optional[str] = None
-    ) -> None:
+    def dismiss_comment(self, pr_key: str, comment_id: str, reason: Optional[str] = None) -> None:
         """Record that a comment was investigated and determined non-actionable.
 
         Use this when a comment has been evaluated and the agent determined

@@ -112,9 +112,7 @@ Missing null check in handler function.
         dismissed = agent_state.get_dismissed_comments(pr_key)
         assert comment_id in dismissed
 
-    def test_analyzer_without_agent_state_works_normally(
-        self, test_container, make_comment
-    ):
+    def test_analyzer_without_agent_state_works_normally(self, test_container, make_comment):
         """Test that analyzer works without AgentState (backward compatible)."""
         # Create analyzer WITHOUT agent state
         analyzer = PRAnalyzer(test_container)
@@ -194,24 +192,26 @@ class TestAnalyzerDismissalInFullAnalysis:
 
             # Setup mock GitHub with an actionable comment
             mock_github.set_pr_data(make_pr_data(number=123))
-            mock_github.set_comments([
-                make_comment(
-                    comment_id=1,
-                    author="coderabbitai[bot]",
-                    body="""_⚠️ Potential issue_ | _🔴 Critical_
+            mock_github.set_comments(
+                [
+                    make_comment(
+                        comment_id=1,
+                        author="coderabbitai[bot]",
+                        body="""_⚠️ Potential issue_ | _🔴 Critical_
 
 Missing null check.
 """,
-                ),
-                make_comment(
-                    comment_id=2,
-                    author="coderabbitai[bot]",
-                    body="""_⚠️ Potential issue_ | _🟡 Minor_
+                    ),
+                    make_comment(
+                        comment_id=2,
+                        author="coderabbitai[bot]",
+                        body="""_⚠️ Potential issue_ | _🟡 Minor_
 
 Consider adding a comment.
 """,
-                ),
-            ])
+                    ),
+                ]
+            )
             mock_github.set_reviews([])
             mock_github.set_threads([])
             mock_github.set_ci_status(make_ci_status(state="success"))
@@ -224,12 +224,8 @@ Consider adding a comment.
 
             # Comment 1 should be NON_ACTIONABLE (dismissed)
             # Comment 2 should be ACTIONABLE
-            dismissed_comment = next(
-                (c for c in result.comments if c.id == "1"), None
-            )
-            active_comment = next(
-                (c for c in result.comments if c.id == "2"), None
-            )
+            dismissed_comment = next((c for c in result.comments if c.id == "1"), None)
+            active_comment = next((c for c in result.comments if c.id == "2"), None)
 
             assert dismissed_comment is not None
             assert dismissed_comment.classification == CommentClassification.NON_ACTIONABLE
