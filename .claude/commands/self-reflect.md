@@ -2,57 +2,59 @@
 description: Extract learnings from recent PR reviews and update the knowledge base
 ---
 
-# BEADS Self-Reflect
+# Self-Reflect
 
-You are performing a weekly self-reflection for the BEADS agent swarm. Your job is to analyze PR review comments from the past week and extract high-quality, reusable learnings.
+Analyze PR review comments from the past week and extract high-quality, reusable learnings.
 
 **Philosophy**: Be judicious. Quality over quantity. Each learning should make future development measurably better.
 
 ## Step 1: Fetch PR Comments
 
-```bash
-GITHUB_TOKEN=$(gh auth token) npx tsx scripts/beads-fetch-pr-comments.ts --days 7
-```
+Use the GitHub CLI to fetch recent merged PRs and their review comments:
 
-This outputs PR comments to `.beads/temp/pr-comments.json`.
+```bash
+# List recent merged PRs
+gh pr list --state merged --limit 10 --json number,title,mergedAt
+
+# For each PR, fetch review comments
+for pr in $(gh pr list --state merged --limit 10 --json number -q '.[].number'); do
+  echo "=== PR #$pr ==="
+  gh api repos/{owner}/{repo}/pulls/$pr/comments --jq '.[] | "[\(.user.login)] \(.body[0:300])"' 2>/dev/null | head -10
+  gh api repos/{owner}/{repo}/pulls/$pr/reviews --jq '.[] | select(.body != "") | "[\(.user.login)] \(.body[0:500])"' 2>/dev/null | head -5
+done
+```
 
 ## Step 2: Extract CodeRabbit's Structured Learnings
 
-CodeRabbit includes `🧠 Learnings used` and `✏️ Learnings added` sections with pre-canonicalized learnings. Extract them:
+CodeRabbit includes `🧠 Learnings used` and `✏️ Learnings added` sections. Look for these in review comments.
 
-```bash
-cat .beads/temp/pr-comments.json | jq -r '.comments[].body' | grep -A5 "^Learnt from:" | grep "^Learning:" | sed 's/^Learning: //' | sort -u
-```
+### Evaluate Each Learning
 
-### Evaluate Each CodeRabbit Learning
-
-**NOT all CodeRabbit learnings are equal.** Evaluate each one against these criteria:
+**NOT all learnings are equal.** Evaluate each one against these criteria:
 
 #### ACCEPT (High Value)
 
-- **Applies to patterns**: `Applies to **/*.test.ts: ...` - These are actionable file-scoped rules
+- **Applies to patterns**: `Applies to **/*.test.*: ...` - Actionable file-scoped rules
 - **NEVER/ALWAYS rules**: Clear, enforceable constraints
 - **Security/Performance**: Critical quality gates
 - **Gotchas with context**: Explains WHY something is problematic
 
 #### REJECT or DEFER (Low Value)
 
-- **PR-specific context**: "In PR #X, dsifry did Y" - Too specific unless the pattern generalizes
-- **Personality observations**: "dsifry provides detailed updates" - Not actionable
-- **Process descriptions**: "gdsveiga demonstrates pragmatic scope management" - Meta, not code
-- **Duplicate with slight rewording**: Check if we already have this fact
+- **PR-specific context**: "In PR #X, user did Y" - Too specific unless pattern generalizes
+- **Personality observations**: "User provides detailed updates" - Not actionable
+- **Process descriptions**: Meta observations, not code-related
+- **Duplicate with slight rewording**: Check existing facts first
 - **Obvious/trivial**: Things any developer should know
 
 #### TRANSFORM (Medium Value → Make High Value)
 
-Some learnings need transformation to be useful:
+Some learnings need transformation:
 
-- **Before**: "In PR #593, gdsveiga explains optional AIProvider methods support backward compatibility"
-- **After**: "Optional interface methods (generateWithTools?, generateObject?) follow Interface Segregation Principle - add runtime guards before use"
+- **Before**: "In PR #593, the optional methods support backward compatibility"
+- **After**: "Optional interface methods follow Interface Segregation Principle - add runtime guards before use"
 
 ### Quality Filter Questions
-
-For each potential learning, ask:
 
 1. **Would this prevent a bug?** If yes, high priority.
 2. **Would this save review cycles?** If yes, add it.
@@ -62,78 +64,53 @@ For each potential learning, ask:
 
 ## Step 3: Analyze Comment Patterns
 
-Beyond CodeRabbit's structured learnings, look for **recurring patterns** in review comments:
-
-```bash
-# Find comments mentioning common issues
-cat .beads/temp/pr-comments.json | jq -r '.comments[] | select(.reviewerType == "coderabbit") | .body' | grep -i "nitpick\|issue\|suggestion\|consider\|should\|must\|avoid" | head -50
-```
-
-### Pattern Detection Checklist
-
-Look for these patterns across multiple PRs:
+Look for **recurring patterns** across multiple PRs:
 
 1. **Repeated corrections**: Same issue flagged in multiple PRs → Create a learning
-2. **Architectural feedback**: Comments about service design, dependencies → Capture the principle
-3. **Testing feedback**: Mock patterns, test structure issues → Document the pattern
-4. **Type safety issues**: Repeated type casting problems → Create a gotcha
+2. **Architectural feedback**: Comments about design, dependencies → Capture the principle
+3. **Testing feedback**: Test patterns, structure issues → Document the pattern
+4. **Type safety issues**: Repeated type problems → Create a gotcha
 5. **Performance concerns**: N+1 queries, memory issues → Document with context
 
-### Example Pattern Analysis
+## Step 4: Store Learnings
 
-If you see comments like:
+Add validated learnings to `.beads/knowledge/facts.json`:
 
-- PR #801: "Consider using mock factories instead of manual mocks"
-- PR #815: "Use createMockUser() from mock-factories.ts"
-- PR #833: "Manual mock data should use factory pattern"
-
-**Extract the pattern**:
-
-```
-fact: "Use mock factories from src/lib/services/mock-factories.ts instead of manually creating test data"
-type: "pattern"
-tags: ["testing", "mocking"]
-affectedFiles: ["**/*.test.ts"]
-```
-
-## Step 4: Categorize and Store
-
-For each validated learning:
-
-```typescript
-import { getKnowledgeCaptureService } from "@/lib/services/beads/knowledge-capture.service";
-
-const service = getKnowledgeCaptureService();
-await service.addFact({
-  type: determineType(learning), // See type guide below
-  fact: canonicalize(learning), // See canonicalization rules
-  recommendation: extractAction(learning),
-  confidence: assessConfidence(learning),
-  provenance: [{ source, reference, date, context }],
-  tags: extractTags(learning),
-  affectedFiles: extractFilePatterns(learning),
-});
+```json
+{
+  "id": "unique-id",
+  "type": "pattern|gotcha|security|performance|decision|api_behavior|code_quirk",
+  "fact": "The learning in imperative mood",
+  "recommendation": "What to do about it",
+  "confidence": "high|medium|low",
+  "tags": ["relevant", "tags"],
+  "affectedFiles": ["**/*.py"],
+  "provenance": {
+    "source": "pr-review|debugging|conversation",
+    "reference": "PR #N or description",
+    "date": "YYYY-MM-DD",
+    "reviewer": "who identified this"
+  }
+}
 ```
 
 ### Type Guide
 
-| Type           | When to Use                  | Example                                                 |
-| -------------- | ---------------------------- | ------------------------------------------------------- |
-| `pattern`      | Reusable code patterns       | "Use mock factories for test data"                      |
-| `gotcha`       | Common mistakes/pitfalls     | "Truthy check fails for explicit zero values"           |
-| `security`     | Security-sensitive patterns  | "Always validate JWT server-side"                       |
-| `performance`  | Performance implications     | "Use database indexes for frequent queries"             |
-| `decision`     | Team/architectural decisions | "Prefer Strategy over Template Method for AI providers" |
-| `api_behavior` | External API quirks          | "Prisma findMany returns [] not null"                   |
-| `code_quirk`   | Codebase-specific oddities   | "Thread model is for drafts only, not email threads"    |
+| Type           | When to Use                  | Example                                        |
+| -------------- | ---------------------------- | ---------------------------------------------- |
+| `pattern`      | Reusable code patterns       | "Use mock factories for test data"             |
+| `gotcha`       | Common mistakes/pitfalls     | "Truthy check fails for explicit zero values"  |
+| `security`     | Security-sensitive patterns  | "Always validate tokens server-side"           |
+| `performance`  | Performance implications     | "Use database indexes for frequent queries"    |
+| `decision`     | Team/architectural decisions | "Prefer composition over inheritance"          |
+| `api_behavior` | External API quirks          | "GitHub API returns workflow names, not jobs"  |
+| `code_quirk`   | Codebase-specific oddities   | "Thread model is for drafts only"              |
 
 ### Canonicalization Rules
 
-Transform raw learnings into actionable facts:
-
 1. **Remove PR references**: "In PR #593..." → Remove, keep the principle
-2. **Remove names when not relevant**: "dsifry prefers..." → Keep only if it's a team decision
-3. **Generalize file paths**: `src/lib/services/foo.ts` → `src/lib/services/**/*.ts`
+2. **Remove names when not relevant**: "User prefers..." → Keep only if team decision
+3. **Generalize file paths**: `src/foo/bar.py` → `src/foo/**/*.py`
 4. **Use imperative mood**: "Consider using..." → "Use..."
 5. **Include the WHY**: "Use X" → "Use X because Y"
 6. **Keep under 200 chars** when possible
@@ -146,14 +123,14 @@ Transform raw learnings into actionable facts:
 | `medium` | Single PR observation, team preference, architectural guidance                 |
 | `low`    | Speculative, context-dependent, might not always apply                         |
 
-## Step 5: Deduplication Check
+## Step 5: Check for Duplicates
 
-Before adding, check for semantic duplicates:
+Before adding, review existing facts in `.beads/knowledge/facts.json` for semantic duplicates. If similar exists, consider:
 
-```typescript
-const existing = await service.search({ query: newFact.fact });
-// Review matches - if >80% similar, skip or merge
-```
+- **New supersedes old**: Update the existing fact
+- **Keep both**: They capture different aspects
+- **Merge**: Combine into one comprehensive fact
+- **Discard new**: Existing fact is sufficient
 
 ## Step 6: Generate Report
 
@@ -164,68 +141,41 @@ const existing = await service.search({ query: newFact.fact });
 
 - PRs Analyzed: X
 - Comments Reviewed: Y
-- CodeRabbit Learnings Evaluated: Z
+- Learnings Evaluated: Z
   - Accepted: A
   - Rejected (low value): B
   - Transformed: C
-- Pattern-Based Learnings: W
 - Total New Facts Added: N
 
 ### Learnings Added
 
-#### High-Value CodeRabbit Learnings
+1. **[type]** Brief description
+   - Why accepted: Reason
 
-1. **[pattern]** Applies to \*_/_.test.ts: Use mock factories...
-   - Why accepted: Actionable, file-scoped, prevents test maintenance issues
+### Rejected/Deferred
 
-#### Pattern-Detected Learnings
-
-1. **[gotcha]** Truthy checks fail for explicit zero values
-   - Detected in: PR #878, #865, #841
-   - Pattern: Multiple type coercion issues
-
-#### Rejected/Deferred
-
-1. "In PR #593, gdsveiga explains..." - Too PR-specific, personality observation
-2. "dsifry provides detailed updates" - Process observation, not actionable
+1. "Learning text" - Reason for rejection
 
 ### Knowledge Base Statistics
 
 - Total facts: N
-- By type: pattern (X), decision (Y), gotcha (Z)...
-- Quality: high (A), medium (B), low (C)
-```
-
-## Quick Reference
-
-```bash
-# Full workflow
-GITHUB_TOKEN=$(gh auth token) npx tsx scripts/beads-fetch-pr-comments.ts --days 7
-
-# Extract CodeRabbit learnings for evaluation
-cat .beads/temp/pr-comments.json | jq -r '.comments[].body' | \
-  grep -A5 "^Learnt from:" | grep "^Learning:" | \
-  sed 's/^Learning: //' | sort -u
-
-# Find high-signal patterns
-cat .beads/temp/pr-comments.json | jq -r \
-  '.comments[] | select(.reviewerType == "coderabbit") |
-   select(.body | test("nitpick|issue|must|never|always"; "i")) |
-   "\(.prNumber): \(.body[0:200])"'
-
-# Check for repeated issues across PRs
-cat .beads/temp/pr-comments.json | jq -r '.comments[].body' | \
-  grep -oE "(mock|type|test|service|pattern)" | sort | uniq -c | sort -rn
-
-# Generate report
-npx tsx scripts/beads-self-reflect.ts --no-slack
+- By type: pattern (X), gotcha (Y), decision (Z)...
 ```
 
 ## Anti-Patterns to Avoid
 
 1. **Quantity over quality**: Don't add 100 mediocre facts; add 10 great ones
-2. **Blindly trusting CodeRabbit**: Evaluate each learning critically
+2. **Blindly trusting reviewers**: Evaluate each learning critically
 3. **Ignoring duplicates**: Check before adding
 4. **Missing the WHY**: Facts without reasoning are less useful
 5. **Over-specificity**: "Use X in file Y" → "Use X in files matching pattern"
 6. **Under-specificity**: "Write good tests" → Not actionable, skip it
+
+## Language-Agnostic Notes
+
+This workflow works with any programming language:
+
+- Uses `gh` CLI for GitHub operations (language-independent)
+- Uses shell tools (`jq`, `grep`) for processing
+- Stores learnings in JSON format
+- File patterns use glob syntax that works across languages
