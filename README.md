@@ -169,7 +169,8 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 EOF
 ```
 
-> **Note**: To allow admin bypass, set `enforce_admins: false` and `allow_force_pushes: true`.
+> **Note**: `enforce_admins: true` means admins must follow all rules. Set to `false` to allow
+> admin bypass. `allow_force_pushes: false` blocks history rewrites. See [USAGE.md](USAGE.md#configuration-options) for details.
 
 See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions workflow setup.
 

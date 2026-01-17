@@ -532,18 +532,22 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 EOF
 ```
 
-> **Note**: The defaults above (`enforce_admins: true`, `allow_force_pushes: false`) provide
-> maximum protection. To allow administrators to bypass checks or force push, set
-> `enforce_admins: false` and/or `allow_force_pushes: true`.
+> **Note**: The defaults above provide maximum protection. See Configuration Options
+> below for how to customize these settings.
 
 ### Configuration Options
 
-| Setting | Value | Description |
-|---------|-------|-------------|
+| Setting | Default | Description |
+|---------|---------|-------------|
 | `required_status_checks.strict` | `true` | Require branches to be up to date before merging |
 | `required_status_checks.contexts` | `["gtg-check"]` | Status checks that must pass |
-| `enforce_admins` | `true` | Enforce rules for admins too (set `false` to allow bypass) |
-| `allow_force_pushes` | `false` | Block force pushes (set `true` to allow for admins) |
+| `enforce_admins` | `true` | **When `true`**: Admins must follow all rules (no bypass). **When `false`**: Admins can merge without passing checks, push directly to main, etc. |
+| `allow_force_pushes` | `false` | **When `false`**: Force pushes to main are blocked for everyone. **When `true`**: Force pushes allowed (useful for rebasing, but can rewrite history). |
+
+**Common customizations:**
+- **Solo developer who needs flexibility**: Set `enforce_admins: false` to bypass checks when needed
+- **Need to rebase/squash on main**: Set `allow_force_pushes: true` (only works if you're admin with `enforce_admins: false`)
+- **Team environment**: Keep defaults (`enforce_admins: true`, `allow_force_pushes: false`) for maximum safety
 
 ### Using GitHub Web UI
 
