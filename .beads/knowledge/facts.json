@@ -105,6 +105,21 @@
         "date": "2026-01-17",
         "context": "Pushed fix but forgot to respond to CodeRabbit thread, leaving it unresolved"
       }
+    },
+    {
+      "id": "gtg-008",
+      "type": "pattern",
+      "fact": "When gtg reports AMBIGUOUS comments from informational replies or status updates you wrote, check if the containing thread is resolvable. Resolve if the issue is addressed; escalate to user if unclear.",
+      "recommendation": "Review ambiguous comments to determine if they indicate completed work (resolve thread) or need user decision (ask for help).",
+      "confidence": "high",
+      "tags": ["gtg", "pr-workflow", "comment-classification"],
+      "affectedFiles": [],
+      "provenance": {
+        "source": "conversation",
+        "reference": "PR #27 shepherding",
+        "date": "2026-01-17",
+        "context": "gtg showed AMBIGUOUS for our own fix explanation comment, blocking READY status"
+      }
     }
   ]
 }
