@@ -77,17 +77,18 @@ class CodeRabbitParser(ReviewerParser):
 
     # Acknowledgment patterns (thank-you replies indicating issue was addressed)
     # These are reply comments from CodeRabbit confirming a fix was applied
+    # Note: GitHub usernames can contain hyphens, so we use [\w-] instead of \w
     ACKNOWLEDGMENT_PATTERNS = [
         # "@username Thank you for the fix/catch/suggestion/addressing"
         re.compile(
-            r"`?@\w+`?\s+Thank\s+you\s+for\s+(the\s+)?(fix|catch|suggestion|addressing)",
+            r"`?@[\w-]+`?\s+Thank\s+you\s+for\s+(the\s+)?(fix|catch|suggestion|addressing)",
             re.IGNORECASE,
         ),
         # "Thank you for addressing this"
         re.compile(r"Thank\s+you\s+for\s+addressing\s+this", re.IGNORECASE),
         # Starts with "Thank you" and contains keywords like fix, addressed, suggestion
         re.compile(
-            r"^`?@?\w*`?\s*,?\s*[Tt]hank\s+you.*?(fix|addressed|updated|resolved|correct|suggestion)",
+            r"^`?@?[\w-]*`?\s*,?\s*[Tt]hank\s+you.*?(fix|addressed|updated|resolved|correct|suggestion)",
             re.IGNORECASE,
         ),
     ]

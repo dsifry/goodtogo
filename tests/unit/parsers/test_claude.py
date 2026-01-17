@@ -503,3 +503,16 @@ This PR fixes the bug in authentication. There was an error handling issue.
         # Summary pattern should take precedence, making it NON_ACTIONABLE
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
+
+    def test_parse_task_completed_hyphenated_username(self, parser: ClaudeCodeParser) -> None:
+        """Test task completion summary with hyphenated username is NON_ACTIONABLE.
+
+        GitHub usernames can contain hyphens (e.g., 'foo-bar'), and the pattern
+        must match these correctly.
+        """
+        body = "**Claude finished @foo-bar's task** —— [View job](https://...)"
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False

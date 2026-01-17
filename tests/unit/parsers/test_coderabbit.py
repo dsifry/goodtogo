@@ -655,3 +655,21 @@ class TestCodeRabbitParserAcknowledgments:
         """Test _is_acknowledgment returns False for non-acknowledgment content."""
         assert parser._is_acknowledgment("This needs to be fixed") is False
         assert parser._is_acknowledgment("Please address this issue") is False
+
+    def test_parse_thank_you_hyphenated_username(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you with hyphenated username is NON_ACTIONABLE.
+
+        GitHub usernames can contain hyphens (e.g., 'foo-bar'), and the pattern
+        must match these correctly.
+        """
+        body = "`@foo-bar` Thank you for the fix! The changes look great."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_acknowledgment_hyphenated_username(self, parser: CodeRabbitParser) -> None:
+        """Test _is_acknowledgment works with hyphenated usernames."""
+        assert parser._is_acknowledgment("@foo-bar Thank you for the fix!") is True
+        assert parser._is_acknowledgment("`@my-user-name` Thank you for the catch!") is True

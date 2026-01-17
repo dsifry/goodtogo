@@ -69,8 +69,8 @@ class ClaudeCodeParser(ReviewerParser):
     # Patterns indicating task completion summaries (non-actionable)
     # These are automated review summaries, not actionable comments
     _SUMMARY_PATTERNS: tuple[re.Pattern[str], ...] = (
-        # "**Claude finished @username's task**" header
-        re.compile(r"\*\*Claude finished @\w+'s task\*\*", re.IGNORECASE),
+        # "**Claude finished @username's task**" header (username can have hyphens)
+        re.compile(r"\*\*Claude finished @[\w-]+'s task\*\*", re.IGNORECASE),
         # "Claude finished reviewing" pattern
         re.compile(r"Claude finished reviewing", re.IGNORECASE),
         # Review summary headers
