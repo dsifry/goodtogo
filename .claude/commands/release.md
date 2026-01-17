@@ -12,63 +12,97 @@ Create a new versioned release with changelog, updated documentation, and GitHub
 
 - `major` - Breaking changes (1.0.0 → 2.0.0)
 - `minor` - New features, backwards compatible (0.58.0 → 0.59.0)
-- `patch` - Bug fixes only (0.58.0 → 0.58.1)
+- `patch` - Bug fixes, documentation, refactoring (0.58.0 → 0.58.1)
+
+## Semantic Versioning Rules
+
+**CRITICAL**: Use conventional commit prefixes to determine version type:
+
+| Commit Prefix | Version Bump | Examples |
+|---------------|--------------|----------|
+| `feat:` | **minor** | New functionality, new API endpoints |
+| `fix:` | patch | Bug fixes, error corrections |
+| `docs:` | patch | README, comments, documentation |
+| `refactor:` | patch | Code restructuring, no behavior change |
+| `test:` | patch | Adding/updating tests |
+| `chore:` | patch | Build, CI, dependencies |
+| `perf:` | patch (or minor if significant) | Performance improvements |
+| `BREAKING CHANGE:` | **major** | Any breaking API change |
+
+**Common mistakes to avoid:**
+- Using `feat:` for documentation changes (use `docs:`)
+- Bumping minor version for non-feature changes
+- Releasing with no actual code changes
 
 ## What This Does
 
-### Phase 1: Gather Changes
+### Phase 1: Detect Project Type
 
-1. Get current version from `package.json`
-2. Find last release tag (e.g., `v0.58.0`)
+Auto-detect project type from configuration files:
+
+| File | Language | Version Location |
+|------|----------|------------------|
+| `pyproject.toml` | Python | `[project] version = "X.Y.Z"` |
+| `package.json` | Node.js | `"version": "X.Y.Z"` |
+| `Cargo.toml` | Rust | `version = "X.Y.Z"` |
+| `go.mod` | Go | Use git tags only |
+| `*.gemspec` | Ruby | `version = "X.Y.Z"` |
+| `pom.xml` | Java/Maven | `<version>X.Y.Z</version>` |
+| `build.gradle` | Gradle | `version = 'X.Y.Z'` |
+
+If project uses `src/<package>/__init__.py` with `__version__`, update that too.
+
+### Phase 2: Gather Changes
+
+1. Get current version from detected config file
+2. Find last release tag (e.g., `v0.5.0`)
 3. Collect all commits since last tag:
    ```bash
-   git log v0.58.0..HEAD --oneline --no-merges
+   git log v0.5.0..HEAD --oneline --no-merges
    ```
 4. Collect merged PRs since last tag:
    ```bash
-   gh pr list --state merged --search "merged:>=$(git log -1 --format=%ci v0.58.0)" --json number,title,labels
+   gh pr list --state merged --search "merged:>=$(git log -1 --format=%ci v0.5.0)" --json number,title,labels
    ```
 
-### Phase 2: Calculate New Version
+### Phase 3: Validate Version Bump
 
-```bash
-# Parse current version
-CURRENT=$(cat package.json | jq -r .version)
+**BEFORE calculating new version**, analyze commits to verify correct bump type:
 
-# Calculate new version based on argument
-case "$1" in
-  major) NEW_VERSION=$(echo $CURRENT | awk -F. '{print $1+1".0.0"}') ;;
-  minor) NEW_VERSION=$(echo $CURRENT | awk -F. '{print $1"."$2+1".0"}') ;;
-  patch) NEW_VERSION=$(echo $CURRENT | awk -F. '{print $1"."$2"."$3+1}') ;;
-esac
+1. List all commits since last tag
+2. Categorize by conventional commit prefix
+3. If user requested `minor` but no `feat:` commits exist, WARN and suggest `patch`
+4. If user requested `patch` but `feat:` commits exist, WARN and suggest `minor`
+5. If any commit has `BREAKING CHANGE:`, require `major`
+
+```
+Example validation output:
+> Commits since v0.5.0:
+>   docs: Add GitHub Pages landing page (1 commit)
+>   docs: Enhanced README (1 commit)
+>
+> ⚠️  WARNING: You requested 'minor' but found 0 feat: commits.
+>     All commits are documentation changes.
+>     Recommended: 'patch' → v0.5.1
+>     Continue with 'minor' anyway? [y/N]
 ```
 
-### Phase 3: Update Service Registry
+### Phase 4: Calculate New Version
 
-```bash
-# 1. Discover services from JSDoc
-npx tsx scripts/verify-service-documentation.ts --output=data/service-audit.json
+Parse version from detected config file and increment appropriately.
 
-# 2. Sync service-registry.json
-npx tsx scripts/sync-service-registry.ts --execute
-
-# 3. Update SERVICE_INVENTORY.md from JSON
-npx tsx scripts/update-service-inventory.ts
-```
-
-### Phase 4: Update CHANGELOG.md
+### Phase 5: Update CHANGELOG.md
 
 Create or update `CHANGELOG.md` with format:
 
 ```markdown
 # Changelog
 
-## [v0.59.0] - 2026-01-10
+## [v0.6.0] - 2026-01-10
 
 ### Features
 
 - feat: Add DraftRecencyFilterStrategy to prevent duplicate drafts (#882)
-- feat: BEADS multi-agent orchestration system (#881)
 
 ### Bug Fixes
 
@@ -76,11 +110,11 @@ Create or update `CHANGELOG.md` with format:
 
 ### Documentation
 
-- docs: Add BEADS developer setup guide
+- docs: Add developer setup guide
 
 ### Other
 
-- chore: Update service inventory
+- chore: Update dependencies
 ```
 
 Group commits by conventional commit type:
@@ -92,58 +126,70 @@ Group commits by conventional commit type:
 - `test:` → Testing
 - `chore:` → Other
 
-### Phase 5: Update package.json
+### Phase 6: Update Version Files
 
+Update version in ALL relevant locations based on detected project type:
+
+**Python (`pyproject.toml`):**
+```toml
+[project]
+version = "X.Y.Z"
+```
+Also update `src/<package>/__init__.py` if it contains `__version__`.
+
+**Node.js (`package.json`):**
 ```bash
-# Update version in package.json
 npm version $NEW_VERSION --no-git-tag-version
 ```
 
-### Phase 6: Extract Learnings (REQUIRED)
-
-Before cutting a release, extract strategic learnings from the conversation history. This ensures architectural decisions, debugging insights, and non-obvious behaviors discovered during the release cycle are captured.
-
-```bash
-# Extract conversation summaries from recent sessions
-pnpm tsx scripts/conversation-history.ts summaries --recent 10
-
-# Extract strategic dialogue for AI analysis
-pnpm tsx scripts/conversation-history.ts extract --strategic-only --recent 5
+**Rust (`Cargo.toml`):**
+```toml
+version = "X.Y.Z"
 ```
 
-Then invoke the extract-learnings command:
+**Go:** Use git tags only (no version file).
 
+**Ruby (`*.gemspec`):**
+```ruby
+spec.version = "X.Y.Z"
 ```
-/project:extract-learnings --historical --recent 5
-```
-
-**This step is REQUIRED** - Release cycles often contain the richest architectural discussions and debugging insights that will be lost if not captured.
-
-**Output**: Present candidate learnings to user for approval. Store approved learnings via `/project:til` workflow.
 
 ### Phase 7: Validate
 
+Run project validation commands. Reference CLAUDE.md for project-specific commands:
+
 ```bash
-# Run all checks
-pnpm lint
-pnpm typecheck
-pnpm test --run
-pnpm build
+# Generic pattern - adapt to project
+<TEST_COMMAND>      # e.g., pytest, npm test, cargo test, go test
+<LINT_COMMAND>      # e.g., ruff check, eslint, clippy
+<TYPECHECK_COMMAND> # e.g., mypy, tsc --noEmit
+<BUILD_COMMAND>     # e.g., pip install -e ., npm run build, cargo build
+```
+
+**For this project (Python):**
+```bash
+pytest && ruff check . && black --check . && mypy src/
 ```
 
 **IMPORTANT**: If any validation fails, STOP and fix issues before proceeding.
 
 ### Phase 8: Commit & Tag
 
+Stage files based on detected project type:
+
 ```bash
-# Stage all changes
-git add package.json CHANGELOG.md docs/SERVICE_INVENTORY.md scripts/service-registry.json
+# Stage version files (adapt to project type)
+# Python: pyproject.toml, src/<package>/__init__.py
+# Node.js: package.json, package-lock.json
+# Rust: Cargo.toml, Cargo.lock
+# Always: CHANGELOG.md
+
+git add <VERSION_FILES> CHANGELOG.md
 
 # Commit
 git commit -m "chore(release): v${NEW_VERSION}
 
 - Updated changelog with all changes since v${PREV_VERSION}
-- Updated service registry (${SERVICE_COUNT} services)
 - Bumped version to ${NEW_VERSION}
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
@@ -171,33 +217,38 @@ Where `CHANGELOG_CURRENT.md` contains just the current release notes section.
 ## Example
 
 ```
-/project:release minor
+/project:release patch
 
-> Current version: 0.58.0
-> New version: 0.59.0
+> Detected project type: Python (pyproject.toml)
+> Current version: 0.5.0
 >
-> Changes since v0.58.0:
-> - 12 commits, 3 PRs merged
+> Commits since v0.5.0:
+>   docs: Add GitHub Pages landing page (1)
+>   docs: Enhanced README with badges (1)
 >
-> Updating service registry...
-> - Discovered 238 services (+2 new)
-> - Updated scripts/service-registry.json
-> - Updated docs/SERVICE_INVENTORY.md
+> ⚠️  Analysis: Found 0 feat: commits, 2 docs: commits
+>    Requested: patch ✓ (correct for docs-only changes)
+>
+> New version: 0.5.1
 >
 > Updating CHANGELOG.md...
-> - Added release notes for v0.59.0
+> - Added release notes for v0.5.1
+>
+> Updating version files...
+> - pyproject.toml: 0.5.0 → 0.5.1
+> - src/goodtogo/__init__.py: 0.5.0 → 0.5.1
 >
 > Running validation...
-> ✓ Lint passed
-> ✓ Typecheck passed
-> ✓ Tests passed (287 tests)
-> ✓ Build passed
+> ✓ pytest passed (45 tests)
+> ✓ ruff check passed
+> ✓ black --check passed
+> ✓ mypy passed
 >
 > Creating release...
 > ✓ Committed changes
-> ✓ Created tag v0.59.0
+> ✓ Created tag v0.5.1
 > ✓ Pushed to origin
-> ✓ Created GitHub release: https://github.com/dsifry/goodtogo/releases/tag/v0.59.0
+> ✓ Created GitHub release
 ```
 
 ## Rollback
