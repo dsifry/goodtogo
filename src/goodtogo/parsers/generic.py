@@ -61,10 +61,10 @@ class GenericParser(ReviewerParser):
         re.compile(r"^will\s+(fix|do|address|update)", re.IGNORECASE),
         re.compile(r"^updated[.!]?\s*$", re.IGNORECASE),
         re.compile(r"^applied[.!]?\s*$", re.IGNORECASE),
-        # Agreement patterns
+        # Agreement patterns - must be complete confirmations, not prefixes
         re.compile(r"^(yep|yeah|yes)[,.]?\s+(fixed|done|updated|addressed)", re.IGNORECASE),
-        re.compile(r"^agreed[,.]?\s*(fixed|done|updated)?", re.IGNORECASE),
-        re.compile(r"^makes\s+sense[,.]", re.IGNORECASE),
+        re.compile(r"^agreed[,.]?\s*(fixed|done|updated)?[.!]?\s*$", re.IGNORECASE),
+        re.compile(r"^makes\s+sense[.!]?\s*$", re.IGNORECASE),
     ]
 
     # Patterns indicating approval or positive feedback (non-actionable)
