@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gtg"
-version = "0.4.0"
+version = "0.5.0"
 description = "Deterministic PR readiness detection for AI coding agents"
 readme = "README.md"
 requires-python = ">=3.9"

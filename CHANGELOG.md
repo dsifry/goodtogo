@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-17
+
+### Features
+
+- feat: Add state persistence to CLI for classification caching (#24)
+- feat: Parse 'Outside diff range' comments from CodeRabbit (#31)
+- feat: Add review timestamps for new review detection (#32)
+
+### Bug Fixes
+
+- fix: Improve parser recognition for Claude and Greptile bots (#25)
+
+### Documentation
+
+- docs: Add agent workflow data needs investigation (#30)
+
 ## [0.4.0] - 2026-01-17
 
 ### Features
