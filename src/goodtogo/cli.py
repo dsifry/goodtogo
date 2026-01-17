@@ -82,10 +82,7 @@ def get_repo_from_git_origin() -> Optional[tuple[str, str]]:
 
     Returns:
         Tuple of (owner, repo) if origin is a valid GitHub URL,
-        None if origin doesn't exist or isn't a GitHub URL.
-
-    Raises:
-        Exception: If not in a git repository or git command fails.
+        None if not in a git repo, no origin remote, or origin isn't GitHub.
     """
     try:
         result = subprocess.run(
