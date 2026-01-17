@@ -210,8 +210,16 @@ class PRAnalyzer:
             # If PR is not ready, invalidate comment/thread/review cache to ensure fresh
             # fetch next time. This prevents stale cache from incorrectly blocking merge.
             if status != PRStatus.READY:
-                pattern = f"pr:{owner}:{repo}:{pr_number}:*"
-                self._container.cache.invalidate_pattern(pattern)
+                # Invalidate PR-level caches
+                pr_pattern = f"pr:{owner}:{repo}:{pr_number}:*"
+                self._container.cache.invalidate_pattern(pr_pattern)
+                # Invalidate granular comment caches for this repo
+                # Note: This is broader than necessary but comment IDs aren't PR-scoped
+                comment_pattern = f"comment:{owner}:{repo}:*"
+                self._container.cache.invalidate_pattern(comment_pattern)
+                # Invalidate granular thread caches for this repo
+                thread_pattern = f"thread:{owner}:{repo}:*"
+                self._container.cache.invalidate_pattern(thread_pattern)
 
             # Get cache stats
             cache_stats = self._container.cache.get_stats()
