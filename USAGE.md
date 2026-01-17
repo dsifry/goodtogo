@@ -566,7 +566,7 @@ EOF
 gh api repos/OWNER/REPO/branches/main/protection
 ```
 
-Example output:
+Example output (with recommended defaults):
 ```json
 {
   "required_status_checks": {
@@ -574,10 +574,10 @@ Example output:
     "contexts": ["Tests & Quality", "gtg-check"]
   },
   "enforce_admins": {
-    "enabled": false
+    "enabled": true
   },
   "allow_force_pushes": {
-    "enabled": true
+    "enabled": false
   }
 }
 ```
