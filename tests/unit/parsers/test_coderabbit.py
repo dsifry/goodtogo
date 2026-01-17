@@ -577,3 +577,81 @@ This PR looks good overall.
         assert classification == CommentClassification.ACTIONABLE
         assert priority == Priority.CRITICAL
         assert requires_investigation is False
+
+
+class TestCodeRabbitParserAcknowledgments:
+    """Tests for CodeRabbit acknowledgment/thank-you pattern detection."""
+
+    @pytest.fixture
+    def parser(self) -> CodeRabbitParser:
+        """Create a CodeRabbitParser instance."""
+        return CodeRabbitParser()
+
+    def test_parse_thank_you_for_fix(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you acknowledgment for fix is NON_ACTIONABLE."""
+        body = "`@dsifry` Thank you for the fix!"
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_thank_you_for_addressing(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you for addressing is NON_ACTIONABLE."""
+        body = "`@dsifry` Thank you for addressing this!"
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_thank_you_for_catch(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you for catch is NON_ACTIONABLE."""
+        body = "@username Thank you for the catch! The fix looks good."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_thank_you_for_suggestion(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you for suggestion is NON_ACTIONABLE."""
+        body = "`@user`, thank you for the suggestion. We'll incorporate it."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_thank_you_updated_correctly(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you mentioning 'updated correctly' is NON_ACTIONABLE."""
+        body = (
+            "`@dsifry`, thank you for the fix! The example output "
+            "now correctly reflects the recommended secure defaults."
+        )
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_thank_you_addressed(self, parser: CodeRabbitParser) -> None:
+        """Test thank-you saying issue was addressed is NON_ACTIONABLE."""
+        body = "`@dsifry` Thank you for addressing this! " "The updated defaults look much safer."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_is_acknowledgment_returns_true(self, parser: CodeRabbitParser) -> None:
+        """Test _is_acknowledgment helper returns True for valid patterns."""
+        assert parser._is_acknowledgment("`@user` Thank you for the fix!") is True
+        assert parser._is_acknowledgment("Thank you for addressing this") is True
+
+    def test_is_acknowledgment_returns_false_for_non_acknowledgment(
+        self, parser: CodeRabbitParser
+    ) -> None:
+        """Test _is_acknowledgment returns False for non-acknowledgment content."""
+        assert parser._is_acknowledgment("This needs to be fixed") is False
+        assert parser._is_acknowledgment("Please address this issue") is False

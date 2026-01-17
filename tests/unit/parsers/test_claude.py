@@ -401,3 +401,105 @@ class TestClaudeCodeParserEdgeCases:
         classification, _, _ = parser.parse(comment)
 
         assert classification == CommentClassification.ACTIONABLE
+
+
+class TestClaudeCodeParserAuthorPatterns:
+    """Tests for claude[bot] author pattern detection."""
+
+    @pytest.fixture
+    def parser(self) -> ClaudeCodeParser:
+        """Create a ClaudeCodeParser instance."""
+        return ClaudeCodeParser()
+
+    def test_can_parse_claude_bot(self, parser: ClaudeCodeParser) -> None:
+        """Test detection of claude[bot] author."""
+        assert parser.can_parse("claude[bot]", "") is True
+
+    def test_can_parse_claude_bot_case_insensitive(self, parser: ClaudeCodeParser) -> None:
+        """Test claude[bot] detection is case-insensitive."""
+        assert parser.can_parse("Claude[bot]", "") is True
+        assert parser.can_parse("CLAUDE[BOT]", "") is True
+
+    def test_can_parse_claude_code_bot(self, parser: ClaudeCodeParser) -> None:
+        """Test detection of claude-code[bot] author."""
+        assert parser.can_parse("claude-code[bot]", "") is True
+
+
+class TestClaudeCodeParserSummaryPatterns:
+    """Tests for Claude task completion summary pattern detection."""
+
+    @pytest.fixture
+    def parser(self) -> ClaudeCodeParser:
+        """Create a ClaudeCodeParser instance."""
+        return ClaudeCodeParser()
+
+    def test_parse_task_completed_summary(self, parser: ClaudeCodeParser) -> None:
+        """Test task completion summary is NON_ACTIONABLE."""
+        body = "**Claude finished @dsifry's task** —— [View job](https://github.com/...)"
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_review_summary_with_header(self, parser: ClaudeCodeParser) -> None:
+        """Test review summary with ### header is NON_ACTIONABLE."""
+        body = """### PR Review: GitHub Actions Documentation
+
+#### Todo List
+- [x] Read changed files
+- [x] Review configuration
+
+## Review Summary
+
+This PR adds documentation for GitHub Actions.
+
+## Recommendation
+**Approve** - This PR is ready to merge.
+"""
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_parse_overall_assessment_section(self, parser: ClaudeCodeParser) -> None:
+        """Test comment with Overall Assessment section is NON_ACTIONABLE."""
+        body = """## Review
+
+The code looks good.
+
+## Overall Assessment
+
+Quality: Excellent
+Security: Strong
+"""
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_summary_takes_precedence_over_actionable_keywords(
+        self, parser: ClaudeCodeParser
+    ) -> None:
+        """Test that summary pattern takes precedence over actionable keywords.
+
+        Task completion summaries may contain words like 'error' or 'bug' in the
+        review content, but the summary pattern should take precedence.
+        """
+        body = """**Claude finished @user's task** —— [View job](...)
+
+### Review Summary
+
+This PR fixes the bug in authentication. There was an error handling issue.
+
+## Recommendation
+**Approve**
+"""
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        # Summary pattern should take precedence, making it NON_ACTIONABLE
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False

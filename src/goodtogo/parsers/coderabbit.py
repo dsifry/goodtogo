@@ -75,6 +75,23 @@ class CodeRabbitParser(ReviewerParser):
     # Addressed status marker
     ADDRESSED_PATTERN = re.compile(r"\u2705\s*Addressed", re.IGNORECASE)
 
+    # Acknowledgment patterns (thank-you replies indicating issue was addressed)
+    # These are reply comments from CodeRabbit confirming a fix was applied
+    ACKNOWLEDGMENT_PATTERNS = [
+        # "@username Thank you for the fix/catch/suggestion/addressing"
+        re.compile(
+            r"`?@\w+`?\s+Thank\s+you\s+for\s+(the\s+)?(fix|catch|suggestion|addressing)",
+            re.IGNORECASE,
+        ),
+        # "Thank you for addressing this"
+        re.compile(r"Thank\s+you\s+for\s+addressing\s+this", re.IGNORECASE),
+        # Starts with "Thank you" and contains keywords like fix, addressed, suggestion
+        re.compile(
+            r"^`?@?\w*`?\s*,?\s*[Tt]hank\s+you.*?(fix|addressed|updated|resolved|correct|suggestion)",
+            re.IGNORECASE,
+        ),
+    ]
+
     # Outside diff range (in review body)
     OUTSIDE_DIFF_PATTERN = re.compile(r"Outside diff range", re.IGNORECASE)
 
@@ -203,6 +220,10 @@ class CodeRabbitParser(ReviewerParser):
         if self.ADDRESSED_PATTERN.search(body):
             return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
 
+        # Check acknowledgment patterns (thank-you replies)
+        if self._is_acknowledgment(body):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
         # Check severity patterns (most specific first)
         if self.CRITICAL_PATTERN.search(body):
             return (CommentClassification.ACTIONABLE, Priority.CRITICAL, False)
@@ -266,6 +287,23 @@ class CodeRabbitParser(ReviewerParser):
             True if the body appears to be a tip/info box.
         """
         for pattern in self.TIP_PATTERNS:
+            if pattern.search(body):
+                return True
+        return False
+
+    def _is_acknowledgment(self, body: str) -> bool:
+        """Check if the body is an acknowledgment/thank-you reply.
+
+        Acknowledgment comments are replies from CodeRabbit confirming
+        that a fix or suggestion was addressed. These don't require action.
+
+        Args:
+            body: Comment body text.
+
+        Returns:
+            True if the body appears to be an acknowledgment.
+        """
+        for pattern in self.ACKNOWLEDGMENT_PATTERNS:
             if pattern.search(body):
                 return True
         return False
