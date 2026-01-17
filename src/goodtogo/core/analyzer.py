@@ -47,6 +47,8 @@ CACHE_TTL_META = 300  # 5 minutes for PR metadata
 CACHE_TTL_CI_PENDING = 300  # 5 minutes while CI pending
 CACHE_TTL_CI_COMPLETE = 86400  # 24 hours after CI complete
 CACHE_TTL_COMMENT = 86400  # 24 hours for immutable comments
+CACHE_TTL_STABLE_THREAD = 86400  # 24 hours for resolved threads
+CACHE_TTL_STABLE_COMMENT = 86400  # 24 hours for NON_ACTIONABLE comments
 
 
 class PRAnalyzer:
@@ -161,7 +163,9 @@ class PRAnalyzer:
             ci_data = self._get_ci_status(owner, repo, head_sha)
 
             # Step 5-6: Process comments with reviewer identification and parsing
-            all_comments = self._process_comments(comments_data, reviews_data, threads_data)
+            all_comments = self._process_comments(
+                owner, repo, comments_data, reviews_data, threads_data
+            )
 
             # Step 7: Build filtered lists
             actionable_comments = [
@@ -192,10 +196,30 @@ class PRAnalyzer:
             # Build thread summary
             threads = self._build_thread_summary(threads_data)
 
+            # Cache resolved threads for future runs (granular thread caching)
+            for thread in threads_data:
+                self._cache_resolved_thread(owner, repo, thread)
+
             # Step 9: Determine final status using decision tree
             status = self._determine_status(
                 ci_status, threads, actionable_comments, ambiguous_comments
             )
+
+            # Issue #28: Invalidate volatile data cache for non-READY PRs
+            # Design principle: Only cache data that won't block a gtg check from passing.
+            # If PR is not ready, invalidate comment/thread/review cache to ensure fresh
+            # fetch next time. This prevents stale cache from incorrectly blocking merge.
+            if status != PRStatus.READY:
+                # Invalidate PR-level caches
+                pr_pattern = f"pr:{owner}:{repo}:{pr_number}:*"
+                self._container.cache.invalidate_pattern(pr_pattern)
+                # Invalidate granular comment caches for this repo
+                # Note: This is broader than necessary but comment IDs aren't PR-scoped
+                comment_pattern = f"comment:{owner}:{repo}:*"
+                self._container.cache.invalidate_pattern(comment_pattern)
+                # Invalidate granular thread caches for this repo
+                thread_pattern = f"thread:{owner}:{repo}:*"
+                self._container.cache.invalidate_pattern(thread_pattern)
 
             # Get cache stats
             cache_stats = self._container.cache.get_stats()
@@ -279,7 +303,13 @@ class PRAnalyzer:
         self._container.cache.set(cache_key, current_sha, CACHE_TTL_META)
 
     def _get_comments(self, owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
-        """Fetch PR comments with caching.
+        """Fetch PR comments with two-tier caching.
+
+        Uses two caching strategies:
+        1. PR-level cache: Caches the full comment list for a short TTL (5 min)
+        2. Granular cache: For each comment, checks if we have a cached stable
+           version (NON_ACTIONABLE classification). Uses cached raw data to
+           avoid re-parsing stable comments.
 
         Args:
             owner: Repository owner.
@@ -289,16 +319,48 @@ class PRAnalyzer:
         Returns:
             List of comment dictionaries.
         """
+        # First, try PR-level cache for the comment list
         cache_key = build_cache_key("pr", owner, repo, str(pr_number), "comments")
-
         cached = self._container.cache.get(cache_key)
         if cached:
             return cast(list[dict[str, Any]], json.loads(cached))
 
-        comments = self._container.github.get_pr_comments(owner, repo, pr_number)
-        self._container.cache.set(cache_key, json.dumps(comments), CACHE_TTL_META)
+        # Fetch fresh comments from GitHub
+        fresh_comments = self._container.github.get_pr_comments(owner, repo, pr_number)
 
-        return comments
+        # Apply granular caching: use cached raw data for stable comments
+        result = []
+        for comment in fresh_comments:
+            comment_id = str(comment.get("id", ""))
+            if not comment_id:
+                # Comments without IDs can't be cached granularly
+                result.append(comment)
+                continue
+
+            granular_cache_key = build_cache_key("comment", owner, repo, comment_id)
+            granular_cached = self._container.cache.get(granular_cache_key)
+
+            if granular_cached:
+                cached_data = json.loads(granular_cached)
+                # Check if comment was edited since caching
+                fresh_timestamp = comment.get("updated_at") or comment.get("created_at", "")
+                cached_timestamp = cached_data.get("cached_at", "")
+                if (
+                    cached_data.get("classification") == "NON_ACTIONABLE"
+                    and fresh_timestamp == cached_timestamp
+                ):
+                    # Use cached data - it's stable AND unchanged
+                    result.append(cached_data["raw"])
+                    continue
+                # Timestamp mismatch means comment was edited - use fresh data
+
+            # Use fresh data
+            result.append(comment)
+
+        # Cache the result at PR level
+        self._container.cache.set(cache_key, json.dumps(result), CACHE_TTL_META)
+
+        return result
 
     def _get_reviews(self, owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
         """Fetch PR reviews with caching.
@@ -323,7 +385,12 @@ class PRAnalyzer:
         return reviews
 
     def _get_threads(self, owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
-        """Fetch PR threads with caching.
+        """Fetch PR threads with two-tier caching.
+
+        Uses two caching strategies:
+        1. PR-level cache: Caches the full thread list for a short TTL (5 min)
+        2. Granular cache: For each thread, checks if we have a cached stable
+           version (resolved state). Uses cached raw data for resolved threads.
 
         Args:
             owner: Repository owner.
@@ -333,16 +400,78 @@ class PRAnalyzer:
         Returns:
             List of thread dictionaries.
         """
+        # First, try PR-level cache for the thread list
         cache_key = build_cache_key("pr", owner, repo, str(pr_number), "threads")
-
         cached = self._container.cache.get(cache_key)
         if cached:
             return cast(list[dict[str, Any]], json.loads(cached))
 
-        threads = self._container.github.get_pr_threads(owner, repo, pr_number)
-        self._container.cache.set(cache_key, json.dumps(threads), CACHE_TTL_META)
+        # Fetch fresh threads from GitHub
+        fresh_threads = self._container.github.get_pr_threads(owner, repo, pr_number)
 
-        return threads
+        # Apply granular caching: use cached raw data for resolved threads
+        result = []
+        for thread in fresh_threads:
+            thread_id = str(thread.get("id", ""))
+            if not thread_id:
+                result.append(thread)
+                continue
+
+            granular_cache_key = build_cache_key("thread", owner, repo, thread_id)
+            granular_cached = self._container.cache.get(granular_cache_key)
+
+            if granular_cached:
+                cached_data = json.loads(granular_cached)
+                # Check if thread was modified since caching
+                fresh_timestamp = thread.get("updated_at") or thread.get("created_at", "")
+                cached_timestamp = cached_data.get("cached_at", "")
+                if cached_data.get("is_resolved", False) and fresh_timestamp == cached_timestamp:
+                    # Use cached data - it's stable AND unchanged
+                    result.append(cached_data["raw"])
+                    continue
+                # Timestamp mismatch means thread was modified (possibly re-opened)
+
+            # Use fresh data
+            result.append(thread)
+
+        # Cache the result at PR level
+        self._container.cache.set(cache_key, json.dumps(result), CACHE_TTL_META)
+
+        return result
+
+    def _cache_resolved_thread(
+        self,
+        owner: str,
+        repo: str,
+        thread_data: dict[str, Any],
+    ) -> None:
+        """Cache a thread if it's resolved (currently stable state).
+
+        Resolved threads are typically stable but can be re-opened or modified.
+        We cache them with a timestamp to detect staleness - if the thread's
+        updated_at changes, we'll use fresh data instead of the cache.
+
+        Args:
+            owner: Repository owner.
+            repo: Repository name.
+            thread_data: Thread dictionary from GitHub API.
+        """
+        if not thread_data.get("is_resolved", False):
+            return  # Don't cache unresolved threads - volatile
+
+        thread_id = str(thread_data.get("id", ""))
+        if not thread_id:
+            return
+
+        cache_key = build_cache_key("thread", owner, repo, thread_id)
+        cache_value = json.dumps(
+            {
+                "raw": thread_data,
+                "is_resolved": True,
+                "cached_at": thread_data.get("updated_at") or thread_data.get("created_at", ""),
+            }
+        )
+        self._container.cache.set(cache_key, cache_value, CACHE_TTL_STABLE_THREAD)
 
     def _get_ci_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
         """Fetch CI status with caching.
@@ -405,6 +534,8 @@ class PRAnalyzer:
 
     def _process_comments(
         self,
+        owner: str,
+        repo: str,
         comments_data: list[dict[str, Any]],
         reviews_data: list[dict[str, Any]],
         threads_data: list[dict[str, Any]],
@@ -413,8 +544,11 @@ class PRAnalyzer:
 
         Combines comments from inline comments, reviews, and threads,
         identifies the reviewer type, and classifies each comment.
+        Caches NON_ACTIONABLE comments for future runs.
 
         Args:
+            owner: Repository owner.
+            repo: Repository name.
             comments_data: List of inline comments from GitHub.
             reviews_data: List of reviews from GitHub.
             threads_data: List of threads from GitHub.
@@ -436,6 +570,8 @@ class PRAnalyzer:
         for comment_data in comments_data:
             comment = self._classify_comment(comment_data, thread_resolution, thread_outdated)
             all_comments.append(comment)
+            # Cache stable (NON_ACTIONABLE) comments
+            self._cache_stable_comment(owner, repo, comment_data, comment.classification)
 
         # Process review body comments
         for review_data in reviews_data:
@@ -455,6 +591,8 @@ class PRAnalyzer:
             }
             comment = self._classify_comment(review_comment, thread_resolution, thread_outdated)
             all_comments.append(comment)
+            # Cache stable (NON_ACTIONABLE) review comments
+            self._cache_stable_comment(owner, repo, review_comment, comment.classification)
 
         return all_comments
 
@@ -806,3 +944,39 @@ class PRAnalyzer:
 
         # All clear!
         return PRStatus.READY
+
+    def _cache_stable_comment(
+        self,
+        owner: str,
+        repo: str,
+        comment_data: dict[str, Any],
+        classification: CommentClassification,
+    ) -> None:
+        """Cache a comment if its classification is stable (NON_ACTIONABLE).
+
+        Only NON_ACTIONABLE comments are cached because their classification
+        is unlikely to change. ACTIONABLE and AMBIGUOUS comments are volatile
+        and should be re-evaluated on each run.
+
+        Args:
+            owner: Repository owner.
+            repo: Repository name.
+            comment_data: Dictionary containing comment data.
+            classification: The classification result for this comment.
+        """
+        if classification != CommentClassification.NON_ACTIONABLE:
+            return  # Don't cache ACTIONABLE or AMBIGUOUS - volatile
+
+        comment_id = str(comment_data.get("id", ""))
+        if not comment_id:
+            return
+
+        cache_key = build_cache_key("comment", owner, repo, comment_id)
+        cache_value = json.dumps(
+            {
+                "raw": comment_data,
+                "classification": classification.value,
+                "cached_at": comment_data.get("updated_at") or comment_data.get("created_at", ""),
+            }
+        )
+        self._container.cache.set(cache_key, cache_value, CACHE_TTL_STABLE_COMMENT)
