@@ -16,7 +16,6 @@ present, which could cause false positives in PR analysis.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import pytest
@@ -357,8 +356,7 @@ Missing null check in handler function.
 
         # Option 2: Comments should be cached with very short TTL (0 or very small)
         comment_set_with_short_ttl = any(
-            key == comments_cache_key and ttl <= 1
-            for key, _, ttl in recording_cache.set_calls
+            key == comments_cache_key and ttl <= 1 for key, _, ttl in recording_cache.set_calls
         )
 
         # Option 3: Comments should not be in cache after analysis
@@ -420,8 +418,7 @@ Security vulnerability detected.
             "threads" in pattern for pattern in recording_cache.invalidate_calls
         )
         thread_set_with_short_ttl = any(
-            key == threads_cache_key and ttl <= 1
-            for key, _, ttl in recording_cache.set_calls
+            key == threads_cache_key and ttl <= 1 for key, _, ttl in recording_cache.set_calls
         )
         threads_in_cache = recording_cache.get(threads_cache_key) is not None
 
@@ -479,8 +476,7 @@ class TestCacheOnAmbiguousStatus:
             "comments" in pattern for pattern in recording_cache.invalidate_calls
         )
         comment_set_with_short_ttl = any(
-            key == comments_cache_key and ttl <= 1
-            for key, _, ttl in recording_cache.set_calls
+            key == comments_cache_key and ttl <= 1 for key, _, ttl in recording_cache.set_calls
         )
         comments_in_cache = recording_cache.get(comments_cache_key) is not None
 
@@ -576,8 +572,8 @@ Missing null check.
         analyzer = PRAnalyzer(container)
 
         # First call - populates cache
-        result1 = analyzer.analyze("owner", "repo", 123)
-        initial_get_calls = len(recording_cache.get_calls)
+        _result1 = analyzer.analyze("owner", "repo", 123)
+        _initial_get_calls = len(recording_cache.get_calls)
 
         # Invalidate cache
         recording_cache.invalidate_pattern("pr:owner:repo:123:comments")
@@ -614,9 +610,7 @@ class TestCacheInvalidationPatterns:
         github.set_ci_status(make_ci_status(state="success"))
 
         # Pre-populate cache with old SHA
-        recording_cache.set(
-            "pr:owner:repo:123:commit:latest", "old_sha", CACHE_TTL_META
-        )
+        recording_cache.set("pr:owner:repo:123:commit:latest", "old_sha", CACHE_TTL_META)
 
         container = Container.create_for_testing(
             github=github,
@@ -630,8 +624,7 @@ class TestCacheInvalidationPatterns:
 
         # Assert: Should have invalidated with wildcard pattern
         assert any(
-            pattern == "pr:owner:repo:123:*"
-            for pattern in recording_cache.invalidate_calls
+            pattern == "pr:owner:repo:123:*" for pattern in recording_cache.invalidate_calls
         ), "Should use wildcard pattern pr:owner:repo:123:* for invalidation"
 
 
@@ -689,8 +682,7 @@ Issue found.
             "reviews" in pattern for pattern in recording_cache.invalidate_calls
         )
         review_set_with_short_ttl = any(
-            key == reviews_cache_key and ttl <= 1
-            for key, _, ttl in recording_cache.set_calls
+            key == reviews_cache_key and ttl <= 1 for key, _, ttl in recording_cache.set_calls
         )
         reviews_in_cache = recording_cache.get(reviews_cache_key) is not None
 
@@ -799,14 +791,18 @@ class TestCachePreservedWhenStatusIsReady:
         tracking_github = TrackingGitHubAdapter(inner_github)
 
         tracking_github.set_pr_data(make_pr_data(number=123))
-        tracking_github.set_comments([
-            make_comment(body="LGTM!"),  # Non-actionable (approval pattern)
-            make_comment(comment_id=2, body="+1"),  # Non-actionable (approval pattern)
-        ])
+        tracking_github.set_comments(
+            [
+                make_comment(body="LGTM!"),  # Non-actionable (approval pattern)
+                make_comment(comment_id=2, body="+1"),  # Non-actionable (approval pattern)
+            ]
+        )
         tracking_github.set_reviews([])
-        tracking_github.set_threads([
-            {"id": "thread-1", "is_resolved": True, "is_outdated": False, "path": "file.py"},
-        ])
+        tracking_github.set_threads(
+            [
+                {"id": "thread-1", "is_resolved": True, "is_outdated": False, "path": "file.py"},
+            ]
+        )
         tracking_github.set_ci_status(make_ci_status(state="success"))
 
         container = Container.create_for_testing(
@@ -840,12 +836,15 @@ class TestCachePreservedWhenStatusIsReady:
         assert result2.status == PRStatus.READY
 
         # Verify GitHub API was NOT called again (data came from cache)
-        assert tracking_github.get_comments_call_count == first_call_comments_count, \
-            "Comments API should NOT be called on second analyze (should use cache)"
-        assert tracking_github.get_threads_call_count == first_call_threads_count, \
-            "Threads API should NOT be called on second analyze (should use cache)"
-        assert tracking_github.get_reviews_call_count == first_call_reviews_count, \
-            "Reviews API should NOT be called on second analyze (should use cache)"
+        assert (
+            tracking_github.get_comments_call_count == first_call_comments_count
+        ), "Comments API should NOT be called on second analyze (should use cache)"
+        assert (
+            tracking_github.get_threads_call_count == first_call_threads_count
+        ), "Threads API should NOT be called on second analyze (should use cache)"
+        assert (
+            tracking_github.get_reviews_call_count == first_call_reviews_count
+        ), "Reviews API should NOT be called on second analyze (should use cache)"
 
         # Verify cache was used (has hits)
         stats = recording_cache.get_stats()
@@ -872,18 +871,20 @@ class TestCacheInvalidatedWhenStatusIsActionRequired:
 
         # Setup: PR with an ACTIONABLE comment from CodeRabbit
         github.set_pr_data(make_pr_data(number=456))
-        github.set_comments([
-            make_comment(
-                comment_id=1,
-                author="coderabbitai[bot]",
-                body="""_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_
+        github.set_comments(
+            [
+                make_comment(
+                    comment_id=1,
+                    author="coderabbitai[bot]",
+                    body="""_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_
 
 Missing null check in handler function. This could cause a NullPointerException.
 """,
-                path="src/handler.py",  # Required for inline comment classification
-                line=42,
-            )
-        ])
+                    path="src/handler.py",  # Required for inline comment classification
+                    line=42,
+                )
+            ]
+        )
         github.set_reviews([])
         github.set_threads([])
         github.set_ci_status(make_ci_status(state="success"))
@@ -913,8 +914,7 @@ Missing null check in handler function. This could cause a NullPointerException.
         # Check if invalidate_pattern was called
         # Note: The fix may invalidate all PR data when action is required
         invalidate_called = any(
-            pattern == expected_pattern or
-            "456" in pattern
+            pattern == expected_pattern or "456" in pattern
             for pattern in recording_cache.invalidate_calls
         )
 
@@ -923,8 +923,7 @@ Missing null check in handler function. This could cause a NullPointerException.
             # Alternative: verify data is not in cache after analysis
             comments_key = "pr:owner:repo:456:comments"
             comments_in_cache = recording_cache.get(comments_key)
-            assert comments_in_cache is None, \
-                "Comments should not be in cache when ACTION_REQUIRED"
+            assert comments_in_cache is None, "Comments should not be in cache when ACTION_REQUIRED"
 
 
 class TestCacheInvalidatedWhenStatusIsUnresolved:
@@ -949,24 +948,26 @@ class TestCacheInvalidatedWhenStatusIsUnresolved:
         github.set_pr_data(make_pr_data(number=789))
         github.set_comments([make_comment(body="LGTM!")])  # Non-actionable
         github.set_reviews([])
-        github.set_threads([
-            {
-                "id": "thread-1",
-                "is_resolved": False,  # Unresolved!
-                "is_outdated": False,
-                "path": "src/main.py",
-                "line": 10,
-                "comments": [{"author": "reviewer", "body": "Please fix this"}],
-            },
-            {
-                "id": "thread-2",
-                "is_resolved": False,  # Also unresolved!
-                "is_outdated": False,
-                "path": "src/utils.py",
-                "line": 25,
-                "comments": [{"author": "reviewer", "body": "Add error handling"}],
-            },
-        ])
+        github.set_threads(
+            [
+                {
+                    "id": "thread-1",
+                    "is_resolved": False,  # Unresolved!
+                    "is_outdated": False,
+                    "path": "src/main.py",
+                    "line": 10,
+                    "comments": [{"author": "reviewer", "body": "Please fix this"}],
+                },
+                {
+                    "id": "thread-2",
+                    "is_resolved": False,  # Also unresolved!
+                    "is_outdated": False,
+                    "path": "src/utils.py",
+                    "line": 25,
+                    "comments": [{"author": "reviewer", "body": "Add error handling"}],
+                },
+            ]
+        )
         github.set_ci_status(make_ci_status(state="success"))
 
         container = Container.create_for_testing(
@@ -998,8 +999,9 @@ class TestCacheInvalidatedWhenStatusIsUnresolved:
         if not invalidate_called:
             threads_key = "pr:owner:repo:789:threads"
             threads_in_cache = recording_cache.get(threads_key)
-            assert threads_in_cache is None, \
-                "Threads should not be in cache when UNRESOLVED_THREADS status"
+            assert (
+                threads_in_cache is None
+            ), "Threads should not be in cache when UNRESOLVED_THREADS status"
 
 
 class TestFreshDataOnSecondCallWhenNotReady:
@@ -1075,9 +1077,11 @@ Security vulnerability: SQL injection possible.
 
         # Verify second call returns READY (comment was resolved)
         assert result2.status == PRStatus.READY
-        assert len(result2.actionable_comments) == 0, \
-            "Should have no actionable comments after resolution"
+        assert (
+            len(result2.actionable_comments) == 0
+        ), "Should have no actionable comments after resolution"
 
         # Verify GitHub API was called again (cache was invalidated)
-        assert tracking_github.get_comments_call_count > first_call_count, \
-            "Comments API should be called again after cache invalidation"
+        assert (
+            tracking_github.get_comments_call_count > first_call_count
+        ), "Comments API should be called again after cache invalidation"
