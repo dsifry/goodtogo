@@ -459,6 +459,90 @@ class TestCommitTimestampFallback:
         assert result.latest_commit_timestamp == "2026-01-15T08:00:00Z"
 
 
+class TestReviewHasActionableComments:
+    """Tests for has_actionable_comments field on reviews."""
+
+    def test_review_with_actionable_body_has_actionable_comments_true(
+        self, mock_github, make_pr_data, make_ci_status
+    ):
+        """Review with actionable body (e.g., CodeRabbit issue) sets has_actionable_comments."""
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        # Review with CodeRabbit-style actionable body
+        mock_github.set_reviews(
+            [
+                {
+                    "id": 12345,
+                    "user": {"login": "coderabbitai[bot]"},
+                    "state": "COMMENTED",
+                    "submitted_at": "2026-01-15T11:00:00Z",
+                    "body": """_⚠️ Potential issue_ | _🔴 Critical_
+
+Missing null check in handler function.
+
+This could cause a runtime exception.""",
+                    "html_url": "https://github.com/org/repo/pull/123#pullrequestreview-12345",
+                }
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+        mock_github.set_commit_data(
+            {
+                "sha": "abc123",
+                "commit": {
+                    "committer": {"date": "2026-01-15T10:00:00Z"},
+                    "author": {"date": "2026-01-15T09:00:00Z"},
+                },
+            }
+        )
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+        result = analyzer.analyze("owner", "repo", 123)
+
+        assert len(result.reviews) == 1
+        assert result.reviews[0].id == "12345"
+        assert result.reviews[0].has_actionable_comments is True
+
+    def test_review_with_non_actionable_body_has_actionable_comments_false(
+        self, mock_github, make_pr_data, make_ci_status, make_review
+    ):
+        """Review with non-actionable body sets has_actionable_comments to False."""
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        # Review with simple LGTM body - not actionable
+        mock_github.set_reviews(
+            [
+                make_review(
+                    review_id=1,
+                    author="reviewer",
+                    state="APPROVED",
+                    submitted_at="2026-01-15T11:00:00Z",
+                    body="LGTM! Great work.",
+                )
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+        mock_github.set_commit_data(
+            {
+                "sha": "abc123",
+                "commit": {
+                    "committer": {"date": "2026-01-15T10:00:00Z"},
+                    "author": {"date": "2026-01-15T09:00:00Z"},
+                },
+            }
+        )
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+        result = analyzer.analyze("owner", "repo", 123)
+
+        assert len(result.reviews) == 1
+        assert result.reviews[0].has_actionable_comments is False
+
+
 class TestGetCommitMethod:
     """Tests for the get_commit adapter method."""
 
