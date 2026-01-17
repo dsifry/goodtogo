@@ -1448,3 +1448,80 @@ class TestGranularThreadCaching:
             for key, _, _ in recording_cache.set_calls
         )
         assert not empty_key_cached, "Thread without ID should not create cache entry"
+
+
+class TestCacheEdgeCases:
+    """Test edge cases in granular caching."""
+
+    def test_cached_comment_with_non_stable_classification_is_ignored(
+        self, make_pr_data, make_comment, make_ci_status
+    ) -> None:
+        """Cached comment with non-NON_ACTIONABLE classification should use fresh data."""
+        # This covers the branch where cached_data.get("classification") != "NON_ACTIONABLE"
+        time_provider = MockTimeProvider()
+        recording_cache = RecordingCacheAdapter(time_provider)
+
+        # Pre-populate cache with a comment that has ACTIONABLE classification
+        # (shouldn't happen in practice, but tests the branch)
+        recording_cache.set(
+            "comment:owner:repo:123",
+            '{"raw": {"id": "123", "body": "Stale"}, "classification": "ACTIONABLE"}',
+            86400,
+        )
+
+        github = ConfigurableGitHubAdapter()
+        github.set_pr_data(make_pr_data())
+        github.set_comments([make_comment(comment_id=123, body="Fresh data")])
+        github.set_reviews([])
+        github.set_threads([])
+        github.set_ci_status(make_ci_status())
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Should use fresh data, not stale cached data with wrong classification
+        assert any(c.body == "Fresh data" for c in result.comments)
+
+    def test_cached_thread_with_unresolved_status_is_ignored(
+        self, make_pr_data, make_ci_status
+    ) -> None:
+        """Cached thread with is_resolved=False should use fresh data."""
+        # This covers the branch where cached_data.get("is_resolved") is False
+        time_provider = MockTimeProvider()
+        recording_cache = RecordingCacheAdapter(time_provider)
+
+        # Pre-populate cache with a thread that has is_resolved=False
+        # (shouldn't happen in practice, but tests the branch)
+        recording_cache.set(
+            "thread:owner:repo:thread-123",
+            '{"raw": {"id": "thread-123", "is_resolved": false}, "is_resolved": false}',
+            86400,
+        )
+
+        github = ConfigurableGitHubAdapter()
+        github.set_pr_data(make_pr_data())
+        github.set_comments([])
+        github.set_reviews([])
+        github.set_threads(
+            [{"id": "thread-123", "is_resolved": True, "is_outdated": False, "comments": []}]
+        )
+        github.set_ci_status(make_ci_status())
+
+        container = Container.create_for_testing(
+            github=github,
+            cache=recording_cache,
+            time_provider=time_provider,
+        )
+        analyzer = PRAnalyzer(container)
+
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Should use fresh data (resolved=True), not cached (resolved=False)
+        assert result.threads.resolved == 1
+        assert result.threads.unresolved == 0
