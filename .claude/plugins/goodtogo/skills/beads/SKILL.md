@@ -483,10 +483,11 @@ Before closing an epic, verify ALL:
 
 - [ ] All BEADS tasks under epic are closed
 - [ ] PR is created and linked to GitHub Issue
-- [ ] **`gtg check` returns exit code 0** (deterministic PR readiness gate)
+- [ ] **`gtg` returns READY status** (deterministic PR readiness gate)
   ```bash
-  gtg check "$OWNER/$REPO" "$PR_NUMBER"
-  # Must return exit code 0 (READY) before proceeding
+  gtg "$PR_NUMBER" --repo "$OWNER/$REPO" --format json > /tmp/gtg.json
+  STATUS=$(jq -r '.status' /tmp/gtg.json)
+  # Must return READY status before proceeding
   ```
 - [ ] Human has approved merge
 - [ ] PR is merged to main
@@ -495,20 +496,24 @@ Before closing an epic, verify ALL:
 
 ### gtg as the Deterministic Gate
 
-The `gtg check` command replaces manual verification of:
+The `gtg` command replaces manual verification of:
 - All CI checks passing
 - All PR comments addressed
 - All PR threads resolved
 
-**A PR is NOT ready until `gtg check` returns exit code 0.**
+**A PR is NOT ready until `gtg` returns READY status.**
 
 ```bash
-# Check PR readiness deterministically
-gtg check owner/repo 123
-echo "Exit code: $?"  # Must be 0
+# Check PR readiness deterministically (recommended: parse JSON status)
+gtg 123 --repo owner/repo --format json > /tmp/gtg.json
+STATUS=$(jq -r '.status' /tmp/gtg.json)
+echo "Status: $STATUS"  # Must be READY
+
+# Alternative: use semantic exit codes for shell scripts
+gtg 123 --repo owner/repo -q  # Exit code 0 = READY
 
 # For details on what's blocking:
-gtg check owner/repo 123 --json | jq '.action_items'
+gtg 123 --repo owner/repo --format json | jq '.action_items'
 ```
 
 ---

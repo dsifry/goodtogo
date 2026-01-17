@@ -124,23 +124,28 @@ bd label add <task-id> review:approved
 When PR is ready to merge, **verify with gtg first**:
 
 ```bash
-# DETERMINISTIC CHECK: gtg must return exit code 0
+# DETERMINISTIC CHECK: gtg must return READY status
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 
-gtg check "$OWNER/$REPO" "$PR_NUMBER"
-GTG_EXIT=$?
+# Option 1: Parse JSON status (recommended for AI agents)
+gtg "$PR_NUMBER" --repo "$OWNER/$REPO" --format json > /tmp/gtg-status.json
+STATUS=$(jq -r '.status' /tmp/gtg-status.json)
 
-if [ $GTG_EXIT -eq 0 ]; then
+if [ "$STATUS" = "READY" ]; then
   # Good to go! Close the task
   bd update <task-id> --status completed
-  bd close <task-id> --reason "PR #${PR_NUMBER} ready to merge. gtg check passed (exit 0)."
+  bd close <task-id> --reason "PR #${PR_NUMBER} ready to merge. gtg status: READY"
 else
   # Not ready - gtg tells us why
-  echo "PR not ready. gtg exit code: $GTG_EXIT"
-  gtg check "$OWNER/$REPO" "$PR_NUMBER" --json | jq '.action_items'
+  echo "PR not ready. Status: $STATUS"
+  jq -r '.action_items[]' /tmp/gtg-status.json
   # Stay in monitoring state
 fi
+
+# Option 2: Use semantic exit codes for shell scripts
+# gtg "$PR_NUMBER" --repo "$OWNER/$REPO" -q
+# Exit code: 0=READY, 1=ACTION_REQUIRED, 2=UNRESOLVED_THREADS, 3=CI_FAILING, 4=ERROR
 ```
 
 ---
@@ -320,11 +325,14 @@ The PR Shepherd reports status via PR comments:
 
 ## Success Criteria
 
-**Deterministic gate**: `gtg check` must return exit code 0
+**Deterministic gate**: `gtg` must return READY status
 
 ```bash
-gtg check "$OWNER/$REPO" "$PR_NUMBER"
-# Exit code 0 = ready, anything else = not ready
+gtg "$PR_NUMBER" --repo "$OWNER/$REPO" --format json > /tmp/gtg.json
+STATUS=$(jq -r '.status' /tmp/gtg.json)
+# Status must be READY
+
+# Alternative: gtg "$PR_NUMBER" --repo "$OWNER/$REPO" -q  (exit code 0 = READY)
 ```
 
 This single command verifies:

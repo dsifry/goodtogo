@@ -18,14 +18,14 @@ Activate this skill when ANY of these conditions are true:
 
 ### Phase 1: Discover and Filter Comments
 
-First, run `gtg check` to get a quick overview of PR status and actionable comments:
+First, run `gtg` to get a quick overview of PR status and actionable comments:
 
 ```bash
 # Get PR status and actionable comments
 OWNER=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 
-gtg check "$OWNER/$REPO" "$PR_NUMBER" --json > /tmp/gtg-status.json
+gtg "$PR_NUMBER" --repo "$OWNER/$REPO" --format json > /tmp/gtg-status.json
 
 # Show status
 echo "Status: $(jq -r '.status' /tmp/gtg-status.json)"
