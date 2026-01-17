@@ -1622,9 +1622,7 @@ class TestPersistClassifications:
         )
 
         # Should check if comment is dismissed
-        mock_agent_state.is_comment_dismissed.assert_called_with(
-            "owner/repo:123", "comment_1"
-        )
+        mock_agent_state.is_comment_dismissed.assert_called_with("owner/repo:123", "comment_1")
         # Should dismiss the comment
         mock_agent_state.dismiss_comment.assert_called_with(
             "owner/repo:123", "comment_1", reason="auto:non_actionable"
@@ -1650,9 +1648,7 @@ class TestPersistClassifications:
         # Should NOT dismiss again
         mock_agent_state.dismiss_comment.assert_not_called()
 
-    def test_persists_resolved_threads(
-        self, mock_agent_state, result_with_non_actionable_comments
-    ):
+    def test_persists_resolved_threads(self, mock_agent_state, result_with_non_actionable_comments):
         """Should mark resolved threads as resolved in state."""
         from goodtogo.cli import _persist_classifications
 
@@ -1665,9 +1661,7 @@ class TestPersistClassifications:
         # Should get already resolved threads
         mock_agent_state.get_resolved_threads.assert_called_with("owner/repo:123")
         # Should mark thread as resolved
-        mock_agent_state.mark_thread_resolved.assert_called_with(
-            "owner/repo:123", "thread_1"
-        )
+        mock_agent_state.mark_thread_resolved.assert_called_with("owner/repo:123", "thread_1")
 
     def test_skips_already_resolved_threads(
         self, mock_agent_state, result_with_non_actionable_comments
