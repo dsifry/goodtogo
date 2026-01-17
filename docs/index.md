@@ -43,8 +43,9 @@ That's it. One command. One answer.
 |--------|---------|------------|
 | `READY` | All clear | Merge it |
 | `ACTION_REQUIRED` | Comments need fixes | Address them |
-| `UNRESOLVED_THREADS` | Open discussions | Resolve them |
+| `UNRESOLVED` | Open discussions | Resolve them |
 | `CI_FAILING` | Checks not passing | Fix the build |
+| `ERROR` | Failed to fetch data | Check token/network |
 
 No ambiguity. No guessing. No infinite loops.
 

@@ -138,7 +138,7 @@ gtg 123 --format json
 |------|--------|
 | 0 | READY |
 | 1 | ACTION_REQUIRED |
-| 2 | UNRESOLVED_THREADS |
+| 2 | UNRESOLVED |
 | 3 | CI_FAILING |
 | 4 | ERROR |
 

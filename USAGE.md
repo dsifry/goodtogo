@@ -168,7 +168,7 @@ gtg 123 --repo myorg/myrepo --format text
 |------|--------|---------|
 | `OK` | READY | All clear - good to go! |
 | `!!` | ACTION_REQUIRED | Actionable comments need fixes |
-| `??` | UNRESOLVED_THREADS | Unresolved review threads |
+| `??` | UNRESOLVED | Unresolved review threads |
 | `XX` | CI_FAILING | CI/CD checks failing |
 | `##` | ERROR | Error fetching PR data |
 
@@ -192,9 +192,9 @@ Action required:
    - 2 comments require investigation (ambiguous)
 ```
 
-**UNRESOLVED_THREADS (Exit Code 2)** - Review threads need resolution:
+**UNRESOLVED (Exit Code 2)** - Review threads need resolution:
 ```
-?? PR #789: UNRESOLVED_THREADS
+?? PR #789: UNRESOLVED
    CI: success (5/5 passed)
    Threads: 2/4 resolved
 
@@ -617,7 +617,7 @@ With `gtg-check` as a required status check:
 |--------|------------|
 | READY | ✅ Yes |
 | ACTION_REQUIRED | ❌ No - fix comments first |
-| UNRESOLVED_THREADS | ❌ No - resolve threads first |
+| UNRESOLVED | ❌ No - resolve threads first |
 | CI_FAILING | ❌ No - fix CI first |
 | ERROR | ❌ No - check failed |
 
