@@ -337,6 +337,54 @@ class TestCursorBugbotParserEdgeCases:
         assert requires_investigation is True
 
 
+class TestCursorBugbotParserSummaryComments:
+    """Tests for PR-level summary comment classification."""
+
+    @pytest.fixture
+    def parser(self) -> CursorBugbotParser:
+        """Create a CursorBugbotParser instance."""
+        return CursorBugbotParser()
+
+    def test_pr_summary_with_issues_found_is_non_actionable(
+        self, parser: CursorBugbotParser
+    ) -> None:
+        """Test that PR summary 'found N issues' comments are NON_ACTIONABLE.
+
+        These are PR-level summaries that say issues were found elsewhere.
+        The actual actionable comments are inline with severity markers.
+        """
+        body = (
+            "Cursor Bugbot has reviewed your changes and found 2 potential issues.\n\n"
+            "<sup>Bugbot Autofix is OFF. To automatically fix reported issues with "
+            "Cloud Agents, enable Autofix in the Cursor dashboard.</sup>"
+        )
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_one_issue_is_non_actionable(self, parser: CursorBugbotParser) -> None:
+        """Test singular 'found 1 issue' variant is also NON_ACTIONABLE."""
+        body = """Cursor Bugbot has reviewed your changes and found 1 potential issue.
+
+<sup>Bugbot Autofix is OFF.</sup>"""
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_no_issues_is_non_actionable(self, parser: CursorBugbotParser) -> None:
+        """Test 'found 0 issues' or 'no issues' variant is NON_ACTIONABLE."""
+        body = "Cursor Bugbot has reviewed your changes and found 0 potential issues."
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+
 class TestCursorBugbotParserThreadResolution:
     """Tests for thread resolution handling (base class template method)."""
 

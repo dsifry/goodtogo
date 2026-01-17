@@ -71,6 +71,16 @@ class CursorBugbotParser(ReviewerParser):
         ),
     )
 
+    # PR-level summary patterns (non-actionable)
+    # These indicate a review summary, not an actual issue
+    _SUMMARY_PATTERNS = (
+        # "Cursor Bugbot has reviewed your changes and found N potential issue(s)"
+        re.compile(
+            r"Cursor Bugbot has reviewed your changes and found \d+ potential issues?",
+            re.IGNORECASE,
+        ),
+    )
+
     @property
     def reviewer_type(self) -> ReviewerType:
         """Return the reviewer type this parser handles.
@@ -131,6 +141,12 @@ class CursorBugbotParser(ReviewerParser):
         for pattern, classification, priority in self._SEVERITY_PATTERNS:
             if pattern.search(body):
                 return classification, priority, False
+
+        # Check for PR-level summary comments (non-actionable)
+        # These are informational summaries, not actual issues
+        for pattern in self._SUMMARY_PATTERNS:
+            if pattern.search(body):
+                return CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False
 
         # No recognized severity pattern - classify as ambiguous
         # This requires investigation by the agent

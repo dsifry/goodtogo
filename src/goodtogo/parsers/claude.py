@@ -86,6 +86,8 @@ class ClaudeCodeParser(ReviewerParser):
         re.compile(r"\*\*Claude finished @[\w-]+'s task\*\*", re.IGNORECASE),
         # "Claude finished reviewing" pattern
         re.compile(r"Claude finished reviewing", re.IGNORECASE),
+        # "Claude Code Review Skipped" - PR too large or other skip reasons
+        re.compile(r"Claude Code Review Skipped", re.IGNORECASE),
         # Review summary headers
         re.compile(r"^###?\s*(?:PR\s+)?Review(?:\s+Summary)?:", re.MULTILINE | re.IGNORECASE),
         # Recommendation line at end of reviews

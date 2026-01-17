@@ -597,6 +597,24 @@ This PR fixes the bug in authentication. There was an error handling issue.
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
 
+    def test_parse_review_skipped_is_non_actionable(self, parser: ClaudeCodeParser) -> None:
+        """Test that 'Claude Code Review Skipped' messages are NON_ACTIONABLE.
+
+        When Claude skips a review (e.g., PR too large), it posts an informational
+        message that should not require action.
+        """
+        body = """⚠️ **Claude Code Review Skipped**
+
+This PR exceeds the size limits for automated Claude review:
+- PR too large for automated review: 28 files, 3947 additions, 73 deletions
+- Maximum supported: 20 files, 2000 lines changed
+"""
+        comment = {"body": body}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
 
 class TestClaudeCodeParserThreadResolution:
     """Tests for thread resolution handling (base class template method)."""
