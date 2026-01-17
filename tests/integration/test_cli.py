@@ -542,6 +542,8 @@ class TestExitCodes:
                 )
 
         assert result.exit_code == expected_code
+        # Unlike -q, --semantic-codes should still produce output
+        assert result.output != ""
 
     @pytest.mark.parametrize(
         "status,expected_code",
