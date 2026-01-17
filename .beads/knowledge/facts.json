@@ -90,6 +90,21 @@
         "date": "2026-01-17",
         "context": "Action items showed 'CI failing' even when --exclude-checks made status READY"
       }
+    },
+    {
+      "id": "gtg-007",
+      "type": "pattern",
+      "fact": "After pushing commits or taking actions (creating issues, etc.) that address PR review feedback, explicitly reply to each review thread to document the fix and enable thread resolution.",
+      "recommendation": "Reply to threads with commit SHA and brief explanation before marking as resolved.",
+      "confidence": "high",
+      "tags": ["pr-workflow", "github", "communication"],
+      "affectedFiles": [],
+      "provenance": {
+        "source": "conversation",
+        "reference": "PR #27 shepherding",
+        "date": "2026-01-17",
+        "context": "Pushed fix but forgot to respond to CodeRabbit thread, leaving it unresolved"
+      }
     }
   ]
 }
