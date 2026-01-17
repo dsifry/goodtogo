@@ -23,12 +23,11 @@ Good To Go provides **deterministic PR state analysis** via a simple CLI:
 gtg 123 --repo owner/repo
 ```
 
-Returns:
-- **Exit code 0**: Ready to merge - good to go!
-- **Exit code 1**: Action required (actionable comments need fixes)
-- **Exit code 2**: Unresolved threads exist
-- **Exit code 3**: CI failing
+Returns (default - AI-friendly):
+- **Exit code 0**: Any analyzable state (ready, action required, threads, CI)
 - **Exit code 4**: Error fetching data
+
+For shell scripting, use `-q` for semantic exit codes without output, or `--semantic-codes` for output with semantic codes.
 
 ## Installation
 
@@ -65,6 +64,15 @@ Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` f
 
 ### Exit Codes
 
+**Default (AI-friendly)** - returns 0 for all analyzable states:
+
+| Code | Meaning |
+|------|---------|
+| 0 | Any analyzable state (parse the JSON `status` field for details) |
+| 4 | Error fetching PR data |
+
+**With `-q` or `--semantic-codes`** - returns different codes per status:
+
 | Code | Status | Meaning |
 |------|--------|---------|
 | 0 | READY | All clear - good to go! |
@@ -73,18 +81,20 @@ Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` f
 | 3 | CI_FAILING | CI/CD checks failing |
 | 4 | ERROR | Error fetching PR data |
 
+Use `-q` (quiet mode) for shell scripts that only need the exit code.
+
 ### Quick Examples
 
 Here's what the output looks like for each status (using `--format text`):
 
-**READY (Exit Code 0)** - All clear, ready to merge:
+**READY** - All clear, ready to merge:
 ```
 OK PR #123: READY
    CI: success (5/5 passed)
    Threads: 3/3 resolved
 ```
 
-**ACTION_REQUIRED (Exit Code 1)** - Actionable comments need attention:
+**ACTION_REQUIRED** - Actionable comments need attention:
 ```
 !! PR #456: ACTION_REQUIRED
    CI: success (5/5 passed)
@@ -95,7 +105,7 @@ Action required:
    - 2 comments require investigation (ambiguous)
 ```
 
-**UNRESOLVED_THREADS (Exit Code 2)** - Review threads need resolution:
+**UNRESOLVED_THREADS** - Review threads need resolution:
 ```
 ?? PR #789: UNRESOLVED_THREADS
    CI: success (5/5 passed)
@@ -105,7 +115,7 @@ Action required:
    - 2 unresolved review threads need attention
 ```
 
-**CI_FAILING (Exit Code 3)** - CI checks not passing:
+**CI_FAILING** - CI checks not passing:
 ```
 XX PR #101: CI_FAILING
    CI: failure (3/5 passed)
