@@ -1382,6 +1382,13 @@ class TestParseGitHubRemoteUrl:
         result = parse_github_remote_url("https://github.com/owner/repo/")
         assert result == ("owner", "repo")
 
+    def test_parse_ssh_with_trailing_slash(self):
+        """Should handle SSH URL with trailing slash."""
+        from goodtogo.cli import parse_github_remote_url
+
+        result = parse_github_remote_url("git@github.com:owner/repo/")
+        assert result == ("owner", "repo")
+
     def test_returns_none_for_non_github_https(self):
         """Should return None for non-GitHub HTTPS URL."""
         from goodtogo.cli import parse_github_remote_url

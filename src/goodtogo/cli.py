@@ -66,7 +66,7 @@ def parse_github_remote_url(url: str) -> Optional[tuple[str, str]]:
         return (match.group(1), match.group(2))
 
     # SSH format: git@github.com:owner/repo.git or git@github.com:owner/repo
-    ssh_pattern = r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$"
+    ssh_pattern = r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?/?$"
     match = re.match(ssh_pattern, url)
     if match:
         return (match.group(1), match.group(2))
