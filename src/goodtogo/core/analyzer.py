@@ -28,6 +28,7 @@ from goodtogo.core.models import (
     PRAnalysisResult,
     Priority,
     PRStatus,
+    Review,
     ReviewerType,
     ThreadSummary,
     UnresolvedThread,
@@ -149,9 +150,16 @@ class PRAnalyzer:
 
             # Extract commit info
             head_sha = pr_data.get("head", {}).get("sha", "")
-            head_timestamp = pr_data.get("head", {}).get("committed_at", "")
+
+            # Fetch the actual commit timestamp from the commit API
+            commit_data = self._get_commit(owner, repo, head_sha)
+            # The commit timestamp is in commit.committer.date (when it was committed)
+            head_timestamp = commit_data.get("commit", {}).get("committer", {}).get("date", "")
             if not head_timestamp:
-                # Fallback to updated_at if committed_at not available
+                # Fallback to author date if committer date not available
+                head_timestamp = commit_data.get("commit", {}).get("author", {}).get("date", "")
+            if not head_timestamp:
+                # Final fallback to PR updated_at
                 head_timestamp = pr_data.get("updated_at", "")
 
             # Step 3: Check for new commits and invalidate cache if needed
@@ -201,6 +209,11 @@ class PRAnalyzer:
             for thread in threads_data:
                 self._cache_resolved_thread(owner, repo, thread)
 
+            # Build Review objects and compute has_reviews_after_latest_commit
+            reviews, has_reviews_after_latest_commit = self._build_reviews(
+                reviews_data, all_comments, head_timestamp
+            )
+
             # Step 9: Determine final status using decision tree
             status = self._determine_status(
                 ci_status, threads, actionable_comments, ambiguous_comments
@@ -244,6 +257,8 @@ class PRAnalyzer:
                 action_items=action_items,
                 needs_action=needs_action,
                 cache_stats=cache_stats,
+                reviews=reviews,
+                has_reviews_after_latest_commit=has_reviews_after_latest_commit,
             )
 
         except ValueError:
@@ -385,6 +400,29 @@ class PRAnalyzer:
         self._container.cache.set(cache_key, json.dumps(reviews), CACHE_TTL_META)
 
         return reviews
+
+    def _get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Fetch commit details with caching.
+
+        Args:
+            owner: Repository owner.
+            repo: Repository name.
+            ref: Git reference (commit SHA).
+
+        Returns:
+            Dictionary containing commit details.
+        """
+        cache_key = build_cache_key("commit", owner, repo, ref)
+
+        cached = self._container.cache.get(cache_key)
+        if cached:
+            return cast(dict[str, Any], json.loads(cached))
+
+        commit_data = self._container.github.get_commit(owner, repo, ref)
+        # Commits are immutable, so we can cache them for a long time
+        self._container.cache.set(cache_key, json.dumps(commit_data), CACHE_TTL_CI_COMPLETE)
+
+        return commit_data
 
     def _get_threads(self, owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
         """Fetch PR threads with two-tier caching.
@@ -864,6 +902,68 @@ class PRAnalyzer:
             outdated=outdated,
             unresolved_threads=unresolved_threads,
         )
+
+    def _build_reviews(
+        self,
+        reviews_data: list[dict[str, Any]],
+        comments: list[Comment],
+        latest_commit_timestamp: str,
+    ) -> tuple[list[Review], bool]:
+        """Build Review objects and determine if any reviews came after the latest commit.
+
+        Args:
+            reviews_data: List of review dictionaries from GitHub API.
+            comments: List of processed Comment objects (to check for actionable comments).
+            latest_commit_timestamp: ISO 8601 timestamp of the latest commit.
+
+        Returns:
+            Tuple of (list of Review objects, bool indicating if any reviews
+            were submitted after the latest commit).
+        """
+        reviews: list[Review] = []
+        has_reviews_after_latest_commit = False
+
+        # Build a set of review IDs that have actionable comments
+        # Review comments have IDs prefixed with "review_" in our processing
+        actionable_review_ids: set[str] = set()
+        for comment in comments:
+            if (
+                comment.classification == CommentClassification.ACTIONABLE
+                and comment.id.startswith("review_")
+            ):
+                # Extract the original review ID from "review_123" format
+                review_id = comment.id[7:]  # Remove "review_" prefix
+                actionable_review_ids.add(review_id)
+
+        for review_data in reviews_data:
+            review_id = str(review_data.get("id", ""))
+            author = review_data.get("user", {}).get("login", "unknown")
+            submitted_at = review_data.get("submitted_at", "")
+            state = review_data.get("state", "COMMENTED")
+            body = review_data.get("body")
+            url = review_data.get("html_url")
+
+            # Check if this review has actionable comments
+            has_actionable = review_id in actionable_review_ids
+
+            review = Review(
+                id=review_id,
+                author=author,
+                submitted_at=submitted_at,
+                state=state,
+                body=body,
+                has_actionable_comments=has_actionable,
+                url=url,
+            )
+            reviews.append(review)
+
+            # Check if this review was submitted after the latest commit
+            # Simple ISO 8601 string comparison works for GitHub timestamps
+            if submitted_at and latest_commit_timestamp:
+                if submitted_at > latest_commit_timestamp:
+                    has_reviews_after_latest_commit = True
+
+        return reviews, has_reviews_after_latest_commit
 
     def _generate_action_items(
         self,

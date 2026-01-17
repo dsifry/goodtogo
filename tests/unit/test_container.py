@@ -85,6 +85,13 @@ class TestMockGitHubAdapterMethods:
             adapter.get_ci_status("owner", "repo", "abc123")
         assert "not implemented" in str(exc_info.value).lower()
 
+    def test_get_commit_raises_not_implemented(self):
+        """get_commit should raise NotImplementedError."""
+        adapter = MockGitHubAdapter()
+        with pytest.raises(NotImplementedError) as exc_info:
+            adapter.get_commit("owner", "repo", "abc123")
+        assert "not implemented" in str(exc_info.value).lower()
+
 
 # ============================================================================
 # Test: Container.create_default Factory Method

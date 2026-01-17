@@ -452,6 +452,72 @@ class TestGitHubAdapterGetPRThreads:
         assert result[0]["comments"][0]["author"] == "unknown"
 
 
+class TestGitHubAdapterGetCommit:
+    """Tests for get_commit() method."""
+
+    def test_get_commit_success(self) -> None:
+        """get_commit should return commit data on success."""
+        adapter = GitHubAdapter(token="ghp_test123")
+
+        commit_data = {
+            "sha": "abc123def456",
+            "commit": {
+                "author": {
+                    "name": "Test Author",
+                    "email": "test@example.com",
+                    "date": "2026-01-15T09:00:00Z",
+                },
+                "committer": {
+                    "name": "Test Committer",
+                    "email": "test@example.com",
+                    "date": "2026-01-15T10:00:00Z",
+                },
+                "message": "Test commit message",
+            },
+            "author": {"login": "testuser"},
+            "committer": {"login": "testuser"},
+        }
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = commit_data
+        mock_response.headers = {}
+
+        with patch.object(adapter._client, "get", return_value=mock_response):
+            result = adapter.get_commit("owner", "repo", "abc123def456")
+
+        assert result["sha"] == "abc123def456"
+        assert result["commit"]["committer"]["date"] == "2026-01-15T10:00:00Z"
+        assert result["commit"]["author"]["date"] == "2026-01-15T09:00:00Z"
+
+    def test_get_commit_not_found(self) -> None:
+        """get_commit should raise GitHubAPIError when commit not found."""
+        adapter = GitHubAdapter(token="ghp_test123")
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 404
+        mock_response.headers = {}
+
+        with patch.object(adapter._client, "get", return_value=mock_response):
+            with pytest.raises(GitHubAPIError) as exc_info:
+                adapter.get_commit("owner", "repo", "nonexistent")
+
+        assert exc_info.value.status_code == 404
+
+    def test_get_commit_constructs_correct_url(self) -> None:
+        """get_commit should call the correct API endpoint."""
+        adapter = GitHubAdapter(token="ghp_test123")
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"sha": "abc123"}
+        mock_response.headers = {}
+
+        with patch.object(adapter._client, "get", return_value=mock_response) as mock_get:
+            adapter.get_commit("myowner", "myrepo", "abc123sha")
+            mock_get.assert_called_once_with("/repos/myowner/myrepo/commits/abc123sha")
+
+
 class TestGitHubAdapterGetCIStatus:
     """Tests for get_ci_status() method (lines 413-455)."""
 

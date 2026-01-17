@@ -61,6 +61,7 @@ class MockableGitHubAdapter(GitHubPort):
         self._reviews: list[dict[str, Any]] = []
         self._threads: list[dict[str, Any]] = []
         self._ci_status: dict[str, Any] = {}
+        self._commit_data: dict[str, Any] = {}
 
     def set_pr_data(self, data: dict[str, Any]) -> None:
         """Set the PR data to return from get_pr."""
@@ -82,6 +83,10 @@ class MockableGitHubAdapter(GitHubPort):
         """Set the CI status to return from get_ci_status."""
         self._ci_status = status
 
+    def set_commit_data(self, data: dict[str, Any]) -> None:
+        """Set the commit data to return from get_commit."""
+        self._commit_data = data
+
     def get_pr(self, owner: str, repo: str, pr_number: int) -> dict[str, Any]:
         """Return configured PR data."""
         return self._pr_data
@@ -97,6 +102,10 @@ class MockableGitHubAdapter(GitHubPort):
     def get_pr_threads(self, owner: str, repo: str, pr_number: int) -> list[dict[str, Any]]:
         """Return configured threads."""
         return self._threads
+
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Return configured commit data."""
+        return self._commit_data
 
     def get_ci_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
         """Return configured CI status."""
@@ -299,6 +308,30 @@ def make_check_run():
     return _make
 
 
+@pytest.fixture
+def make_commit_data():
+    """Factory for creating commit data dictionaries.
+
+    Returns:
+        A callable that creates commit data with sensible defaults.
+    """
+
+    def _make(
+        sha: str = "abc123def456",
+        committer_date: str = "2024-01-15T10:00:00Z",
+        author_date: str = "2024-01-15T09:00:00Z",
+    ) -> dict[str, Any]:
+        return {
+            "sha": sha,
+            "commit": {
+                "committer": {"date": committer_date},
+                "author": {"date": author_date},
+            },
+        }
+
+    return _make
+
+
 # ============================================================================
 # Pre-configured Scenario Fixtures
 # ============================================================================
@@ -310,6 +343,7 @@ def ready_to_merge_pr(
     make_pr_data,
     make_ci_status,
     make_check_run,
+    make_commit_data,
 ) -> MockableGitHubAdapter:
     """Configure mock for a PR that is ready to merge.
 
@@ -336,6 +370,7 @@ def ready_to_merge_pr(
             ],
         )
     )
+    mock_github.set_commit_data(make_commit_data())
     return mock_github
 
 
@@ -345,6 +380,7 @@ def pr_with_failing_ci(
     make_pr_data,
     make_ci_status,
     make_check_run,
+    make_commit_data,
 ) -> MockableGitHubAdapter:
     """Configure mock for a PR with failing CI.
 
@@ -368,6 +404,7 @@ def pr_with_failing_ci(
             ],
         )
     )
+    mock_github.set_commit_data(make_commit_data())
     return mock_github
 
 
@@ -379,6 +416,7 @@ def pr_with_unresolved_threads(
     make_check_run,
     make_thread,
     make_comment,
+    make_commit_data,
 ) -> MockableGitHubAdapter:
     """Configure mock for a PR with unresolved threads.
 
@@ -414,6 +452,7 @@ def pr_with_unresolved_threads(
             ],
         )
     )
+    mock_github.set_commit_data(make_commit_data())
     return mock_github
 
 
@@ -424,6 +463,7 @@ def pr_with_actionable_comments(
     make_ci_status,
     make_check_run,
     make_comment,
+    make_commit_data,
 ) -> MockableGitHubAdapter:
     """Configure mock for a PR with actionable CodeRabbit comments.
 
@@ -475,4 +515,5 @@ if input is None:
             ],
         )
     )
+    mock_github.set_commit_data(make_commit_data())
     return mock_github
