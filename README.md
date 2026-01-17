@@ -155,11 +155,12 @@ Make `gtg` a required check to block merging until PRs are truly ready:
 
 ```bash
 # Enable branch protection with gtg-check as required
+# Use actual job names from your CI workflow, not the workflow name
 gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Tests & Quality", "gtg-check"]
+    "contexts": ["Lint & Format", "Tests (3.9)", "Type Check", "gtg-check"]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": null,
@@ -169,8 +170,8 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 EOF
 ```
 
-> **Note**: `enforce_admins: true` means admins must follow all rules. Set to `false` to allow
-> admin bypass. `allow_force_pushes: false` blocks history rewrites. See [USAGE.md](USAGE.md#configuration-options) for details.
+> **Note**: Use actual **job names** (e.g., `"Lint & Format"`) not workflow names (e.g., `"Tests & Quality"`).
+> `enforce_admins: true` means admins must follow all rules. See [USAGE.md](USAGE.md#configuration-options) for details.
 
 See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions workflow setup.
 

@@ -522,7 +522,7 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Tests & Quality", "gtg-check"]
+    "contexts": ["Lint & Format", "Tests (3.9)", "Tests (3.10)", "Tests (3.11)", "Tests (3.12)", "Type Check", "gtg-check"]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": null,
@@ -531,6 +531,10 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 }
 EOF
 ```
+
+> **Important**: Use the actual **job names** from your workflow, not the workflow name.
+> For example, use `"Lint & Format"` not `"Tests & Quality"`. You can find job names
+> in the GitHub Actions UI or by running `gh pr checks <pr-number>`.
 
 > **Note**: The defaults above provide maximum protection. See Configuration Options
 > below for how to customize these settings.
@@ -571,7 +575,7 @@ Example output (with recommended defaults):
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Tests & Quality", "gtg-check"]
+    "contexts": ["Lint & Format", "Tests (3.9)", "Type Check", "gtg-check"]
   },
   "enforce_admins": {
     "enabled": true
