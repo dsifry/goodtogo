@@ -206,6 +206,21 @@ class TestGreptileParserReviewSummary:
         assert priority == Priority.UNKNOWN
         assert requires_investigation is False
 
+    def test_inline_comment_with_review_summary_is_non_actionable(
+        self, parser: GreptileParser
+    ) -> None:
+        """Test inline comment with review summary content is NON_ACTIONABLE.
+
+        Even inline comments (with path set) that contain review summary
+        content should be NON_ACTIONABLE - this tests the body-level check.
+        """
+        body = "# Summary\n\nThis summarizes the review findings."
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
 
 class TestGreptileParserAmbiguous:
     """Tests for ambiguous comment handling."""
@@ -343,3 +358,182 @@ class TestGreptileParserSeverityMarkers:
         """Test _check_severity_markers returns None when no pattern matches."""
         result = parser._check_severity_markers("No severity marker here.")
         assert result is None
+
+
+class TestGreptileParserPRLevelSummaryComments:
+    """Tests for PR-level summary comment detection.
+
+    PR-level summary comments from Greptile contain overview information and
+    should be classified as NON_ACTIONABLE because the actual actionable items
+    are in inline comments.
+    """
+
+    @pytest.fixture
+    def parser(self) -> GreptileParser:
+        """Create a GreptileParser instance."""
+        return GreptileParser()
+
+    def test_pr_summary_with_greptile_header(self, parser: GreptileParser) -> None:
+        """Test PR-level summary with Greptile HTML header is NON_ACTIONABLE."""
+        body = """<h3>Greptile Summary</h3>
+
+This PR adds feature X.
+
+**3 files reviewed**
+
+Edit Code Review Agent Settings
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_files_reviewed(self, parser: GreptileParser) -> None:
+        """Test PR-level summary with 'files reviewed' pattern is NON_ACTIONABLE."""
+        body = """## Review Summary
+
+5 files reviewed, no critical issues found.
+
+Powered by Greptile
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_with_edit_settings_link(self, parser: GreptileParser) -> None:
+        """Test PR-level summary with 'Edit Code Review Agent Settings' is NON_ACTIONABLE."""
+        body = """Review complete.
+
+Edit Code Review Agent Settings
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_actionable_comments_zero_pr_level(self, parser: GreptileParser) -> None:
+        """Test PR-level summary with 'Actionable comments posted: 0' is NON_ACTIONABLE.
+
+        Even though the existing parser returns NON_ACTIONABLE for this, we want to
+        ensure PR-level summaries are consistently handled.
+        """
+        body = """<h3>Greptile Summary</h3>
+
+Actionable comments posted: 0
+
+3 files reviewed
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_pr_summary_actionable_comments_nonzero_pr_level(self, parser: GreptileParser) -> None:
+        """Test PR-level summary with 'Actionable comments posted: N' is NON_ACTIONABLE.
+
+        This is the key case - even when there ARE actionable comments, the summary
+        itself should be NON_ACTIONABLE because the actual actionable items are
+        in the inline comments.
+        """
+        body = """<h3>Greptile Summary</h3>
+
+Actionable comments posted: 3
+
+5 files reviewed
+
+Edit Code Review Agent Settings
+"""
+        comment = {"body": body, "path": None, "line": None}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert requires_investigation is False
+
+    def test_inline_comment_with_summary_pattern_not_filtered(self, parser: GreptileParser) -> None:
+        """Test inline comment containing summary pattern is NOT filtered.
+
+        Inline comments (with path/line) should never be filtered by summary detection,
+        even if they happen to contain similar text patterns.
+        """
+        body = """The Greptile Summary mentioned 3 files reviewed but this
+inline comment addresses the actual issue."""
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        # Should NOT be filtered - this is an inline comment
+        # Without severity markers, it should be AMBIGUOUS
+        assert classification == CommentClassification.AMBIGUOUS
+        assert requires_investigation is True
+
+    def test_inline_comment_with_severity_marker_not_filtered(self, parser: GreptileParser) -> None:
+        """Test inline comment with severity marker is correctly classified.
+
+        Inline comments should be classified by their severity markers,
+        not filtered as summaries.
+        """
+        body = "**bug:** This function has a null pointer dereference."
+        comment = {"body": body, "path": "src/file.py", "line": 42}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MAJOR
+        assert requires_investigation is False
+
+    def test_is_pr_summary_comment_returns_false_for_inline(self, parser: GreptileParser) -> None:
+        """Test _is_pr_summary_comment returns False when path is set."""
+        comment = {
+            "body": "<h3>Greptile Summary</h3>\n\n3 files reviewed",
+            "path": "src/file.py",
+            "line": 10,
+        }
+        assert parser._is_pr_summary_comment(comment) is False
+
+    def test_is_pr_summary_comment_returns_true_for_pr_level(self, parser: GreptileParser) -> None:
+        """Test _is_pr_summary_comment returns True for PR-level summary."""
+        comment = {
+            "body": "<h3>Greptile Summary</h3>\n\n3 files reviewed",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_is_pr_summary_comment_with_greptile_header(self, parser: GreptileParser) -> None:
+        """Test _is_pr_summary_comment detects Greptile HTML header."""
+        comment = {
+            "body": "<h3>Greptile Summary</h3>",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_is_pr_summary_comment_with_files_reviewed(self, parser: GreptileParser) -> None:
+        """Test _is_pr_summary_comment detects 'files reviewed' pattern."""
+        comment = {
+            "body": "5 files reviewed, looks good",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_is_pr_summary_comment_with_edit_settings(self, parser: GreptileParser) -> None:
+        """Test _is_pr_summary_comment detects 'Edit Code Review Agent Settings'."""
+        comment = {
+            "body": "Review complete.\n\nEdit Code Review Agent Settings",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
+
+    def test_pr_summary_detection_case_insensitive(self, parser: GreptileParser) -> None:
+        """Test that Greptile summary patterns are case-insensitive."""
+        comment = {
+            "body": "<H3>GREPTILE SUMMARY</H3>",
+            "path": None,
+            "line": None,
+        }
+        assert parser._is_pr_summary_comment(comment) is True
