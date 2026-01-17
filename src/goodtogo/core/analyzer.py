@@ -38,6 +38,7 @@ from goodtogo.core.validation import (
 )
 
 if TYPE_CHECKING:
+    from goodtogo.adapters.agent_state import AgentState
     from goodtogo.container import Container
 
 
@@ -70,7 +71,12 @@ class PRAnalyzer:
         PRStatus.READY
     """
 
-    def __init__(self, container: Container) -> None:
+    def __init__(
+        self,
+        container: Container,
+        agent_state: Optional[AgentState] = None,
+        pr_key: Optional[str] = None,
+    ) -> None:
         """Initialize the PRAnalyzer with a DI container.
 
         Args:
@@ -78,8 +84,15 @@ class PRAnalyzer:
                 - github: GitHubPort implementation for API access
                 - cache: CachePort implementation for caching
                 - parsers: Dict mapping ReviewerType to ReviewerParser
+            agent_state: Optional AgentState for persisting classification
+                decisions. When provided, dismissed comments are automatically
+                classified as NON_ACTIONABLE without running the parser.
+            pr_key: Optional PR key in format "owner/repo:pr_number". Required
+                when using agent_state for dismissal persistence.
         """
         self._container = container
+        self._agent_state = agent_state
+        self._pr_key = pr_key
 
     def analyze(
         self,
@@ -453,6 +466,9 @@ class PRAnalyzer:
     ) -> Comment:
         """Classify a single comment using the appropriate parser.
 
+        If agent_state is configured and the comment was previously dismissed,
+        returns NON_ACTIONABLE without running the parser.
+
         Args:
             comment_data: Dictionary containing comment data.
             thread_resolution: Map of thread ID to resolution status.
@@ -474,6 +490,28 @@ class PRAnalyzer:
 
         # Identify reviewer type
         reviewer_type = self._identify_reviewer_type(author, body)
+
+        # Check if comment was previously dismissed
+        if self._agent_state is not None and self._pr_key is not None:
+            if self._agent_state.is_comment_dismissed(self._pr_key, comment_id):
+                # Return NON_ACTIONABLE without running parser
+                return Comment(
+                    id=comment_id,
+                    author=author,
+                    reviewer_type=reviewer_type,
+                    body=body,
+                    classification=CommentClassification.NON_ACTIONABLE,
+                    priority=Priority.UNKNOWN,
+                    requires_investigation=False,
+                    thread_id=thread_id,
+                    is_resolved=is_resolved,
+                    is_outdated=is_outdated,
+                    file_path=comment_data.get("path"),
+                    line_number=comment_data.get("line"),
+                    created_at=comment_data.get("created_at", ""),
+                    addressed_in_commit=None,
+                    url=comment_data.get("html_url"),
+                )
 
         # Get the appropriate parser (fallback to HUMAN parser if not found)
         parser = self._container.parsers.get(reviewer_type)
@@ -510,6 +548,32 @@ class PRAnalyzer:
             addressed_in_commit=None,
             url=comment_data.get("html_url"),
         )
+
+    def dismiss_comment(self, comment_id: str, reason: Optional[str] = None) -> None:
+        """Mark a comment as dismissed (non-actionable).
+
+        Persists the dismissal decision so future runs skip re-evaluation
+        of this comment.
+
+        Args:
+            comment_id: ID of the comment to dismiss.
+            reason: Optional explanation for why the comment was dismissed.
+
+        Raises:
+            ValueError: If pr_key is not set on the analyzer.
+            RuntimeError: If agent_state is not configured.
+        """
+        if self._pr_key is None:
+            raise ValueError(
+                "pr_key must be set on the analyzer to dismiss comments. "
+                "Pass pr_key when creating PRAnalyzer."
+            )
+        if self._agent_state is None:
+            raise RuntimeError(
+                "agent_state must be configured to dismiss comments. "
+                "Pass agent_state when creating PRAnalyzer."
+            )
+        self._agent_state.dismiss_comment(self._pr_key, comment_id, reason)
 
     def _build_ci_status(self, ci_data: dict[str, Any], exclude_checks: set[str]) -> CIStatus:
         """Build CIStatus model from GitHub API response.
