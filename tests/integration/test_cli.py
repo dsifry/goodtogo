@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from goodtogo.cli import EXIT_CODES, main
+from goodtogo.cli import AI_FRIENDLY_EXIT_CODES, SEMANTIC_EXIT_CODES, main
 from goodtogo.core.models import (
     CacheStats,
     CICheck,
@@ -136,7 +136,10 @@ class TestHelpAndVersion:
         """--help should document exit codes."""
         result = cli_runner.invoke(main, ["--help"])
 
-        assert "Exit codes:" in result.output
+        # Both AI-friendly and semantic exit codes should be documented
+        assert "Exit codes" in result.output
+        assert "AI-friendly" in result.output
+        assert "semantic" in result.output.lower()
         assert "Ready to merge" in result.output
         assert "Actionable comments" in result.output
 
@@ -178,7 +181,9 @@ class TestJsonOutput:
                     CICheck(name="test", status="success", conclusion="success", url=None),
                 ],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],
@@ -298,7 +303,9 @@ class TestTextOutput:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=5, resolved=5, unresolved=0, outdated=1),
+            threads=ThreadSummary(
+                total=5, resolved=5, unresolved=0, outdated=1, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],
@@ -325,7 +332,9 @@ class TestTextOutput:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[
                 Comment(
@@ -343,6 +352,7 @@ class TestTextOutput:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 )
             ],
             ambiguous_comments=[],
@@ -487,7 +497,9 @@ class TestExitCodes:
                     pending=0,
                     checks=[],
                 ),
-                threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+                threads=ThreadSummary(
+                    total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+                ),
                 comments=[],
                 actionable_comments=[],
                 ambiguous_comments=[],
@@ -508,10 +520,45 @@ class TestExitCodes:
             (PRStatus.ERROR, 4),
         ],
     )
-    def test_exit_code_matches_status(
+    def test_semantic_exit_code_matches_status(
         self, cli_runner: CliRunner, make_result, status: PRStatus, expected_code: int
     ):
-        """Exit code should match the PR status."""
+        """Exit code should match the PR status when using --semantic-codes."""
+        result_model = make_result(status)
+
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = result_model
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                result = cli_runner.invoke(
+                    main,
+                    ["123", "--repo", "owner/repo", "--semantic-codes"],
+                    env={"GITHUB_TOKEN": "ghp_test"},
+                )
+
+        assert result.exit_code == expected_code
+        # Unlike -q, --semantic-codes should still produce output
+        assert result.output != ""
+
+    @pytest.mark.parametrize(
+        "status,expected_code",
+        [
+            (PRStatus.READY, 0),
+            (PRStatus.ACTION_REQUIRED, 0),
+            (PRStatus.UNRESOLVED_THREADS, 0),
+            (PRStatus.CI_FAILING, 0),
+            (PRStatus.ERROR, 4),
+        ],
+    )
+    def test_default_exit_code_is_ai_friendly(
+        self, cli_runner: CliRunner, make_result, status: PRStatus, expected_code: int
+    ):
+        """Default exit code should be AI-friendly (0 for non-error states)."""
         result_model = make_result(status)
 
         with patch("goodtogo.cli.Container") as mock_container_cls:
@@ -531,13 +578,21 @@ class TestExitCodes:
 
         assert result.exit_code == expected_code
 
-    def test_exit_codes_constant_matches_documentation(self):
-        """EXIT_CODES constant should match documented values."""
-        assert EXIT_CODES[PRStatus.READY] == 0
-        assert EXIT_CODES[PRStatus.ACTION_REQUIRED] == 1
-        assert EXIT_CODES[PRStatus.UNRESOLVED_THREADS] == 2
-        assert EXIT_CODES[PRStatus.CI_FAILING] == 3
-        assert EXIT_CODES[PRStatus.ERROR] == 4
+    def test_semantic_exit_codes_constant_matches_documentation(self):
+        """SEMANTIC_EXIT_CODES constant should match documented values."""
+        assert SEMANTIC_EXIT_CODES[PRStatus.READY] == 0
+        assert SEMANTIC_EXIT_CODES[PRStatus.ACTION_REQUIRED] == 1
+        assert SEMANTIC_EXIT_CODES[PRStatus.UNRESOLVED_THREADS] == 2
+        assert SEMANTIC_EXIT_CODES[PRStatus.CI_FAILING] == 3
+        assert SEMANTIC_EXIT_CODES[PRStatus.ERROR] == 4
+
+    def test_ai_friendly_exit_codes_only_error_is_nonzero(self):
+        """AI_FRIENDLY_EXIT_CODES should only have non-zero for ERROR."""
+        assert AI_FRIENDLY_EXIT_CODES[PRStatus.READY] == 0
+        assert AI_FRIENDLY_EXIT_CODES[PRStatus.ACTION_REQUIRED] == 0
+        assert AI_FRIENDLY_EXIT_CODES[PRStatus.UNRESOLVED_THREADS] == 0
+        assert AI_FRIENDLY_EXIT_CODES[PRStatus.CI_FAILING] == 0
+        assert AI_FRIENDLY_EXIT_CODES[PRStatus.ERROR] == 4
 
 
 # ============================================================================
@@ -655,7 +710,9 @@ class TestCacheOptions:
                         pending=0,
                         checks=[],
                     ),
-                    threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+                    threads=ThreadSummary(
+                        total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+                    ),
                     comments=[],
                     actionable_comments=[],
                     ambiguous_comments=[],
@@ -715,7 +772,9 @@ class TestVerboseAmbiguousComments:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[
                 Comment(
                     id="1",
@@ -732,6 +791,7 @@ class TestVerboseAmbiguousComments:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
                 Comment(
                     id="2",
@@ -751,6 +811,7 @@ class TestVerboseAmbiguousComments:
                     line_number=100,
                     created_at="2024-01-15T11:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
             ],
             actionable_comments=[],
@@ -770,6 +831,7 @@ class TestVerboseAmbiguousComments:
                     line_number=42,
                     created_at="2024-01-15T10:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
                 Comment(
                     id="2",
@@ -789,6 +851,7 @@ class TestVerboseAmbiguousComments:
                     line_number=100,
                     created_at="2024-01-15T11:00:00Z",
                     addressed_in_commit=None,
+                    url=None,
                 ),
             ],
             action_items=["2 comments require investigation (ambiguous)"],
@@ -890,7 +953,9 @@ class TestVerboseAmbiguousComments:
                 pending=0,
                 checks=[],
             ),
-            threads=ThreadSummary(total=0, resolved=0, unresolved=0, outdated=0),
+            threads=ThreadSummary(
+                total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+            ),
             comments=[],
             actionable_comments=[],
             ambiguous_comments=[],  # Empty!
@@ -957,3 +1022,136 @@ class TestCLIMainEntryPoint:
         # Should show help text and exit successfully
         assert result.returncode == 0
         assert "Check if a PR is ready to merge" in result.stdout
+
+
+# ============================================================================
+# Test: Quiet Mode (-q/--quiet)
+# ============================================================================
+
+
+class TestQuietMode:
+    """Tests for quiet mode (-q/--quiet) which suppresses output and uses semantic codes."""
+
+    @pytest.fixture
+    def make_result(self):
+        """Factory for creating PRAnalysisResult with different statuses."""
+
+        def _make(status: PRStatus) -> PRAnalysisResult:
+            return PRAnalysisResult(
+                status=status,
+                pr_number=123,
+                repo_owner="owner",
+                repo_name="repo",
+                latest_commit_sha="abc123",
+                latest_commit_timestamp="2024-01-15T10:00:00Z",
+                ci_status=CIStatus(
+                    state="success" if status == PRStatus.READY else "failure",
+                    total_checks=1,
+                    passed=1 if status == PRStatus.READY else 0,
+                    failed=0 if status == PRStatus.READY else 1,
+                    pending=0,
+                    checks=[],
+                ),
+                threads=ThreadSummary(
+                    total=0, resolved=0, unresolved=0, outdated=0, unresolved_threads=[]
+                ),
+                comments=[],
+                actionable_comments=[],
+                ambiguous_comments=[],
+                action_items=[],
+                needs_action=status != PRStatus.READY,
+                cache_stats=None,
+            )
+
+        return _make
+
+    def test_quiet_mode_suppresses_output(self, cli_runner: CliRunner, make_result):
+        """Quiet mode should produce no output."""
+        result_model = make_result(PRStatus.READY)
+
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = result_model
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                result = cli_runner.invoke(
+                    main,
+                    ["123", "--repo", "owner/repo", "-q"],
+                    env={"GITHUB_TOKEN": "ghp_test"},
+                )
+
+        assert result.output == ""
+        assert result.exit_code == 0
+
+    def test_quiet_long_form_suppresses_output(self, cli_runner: CliRunner, make_result):
+        """--quiet should work the same as -q."""
+        result_model = make_result(PRStatus.ACTION_REQUIRED)
+
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = result_model
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                result = cli_runner.invoke(
+                    main,
+                    ["123", "--repo", "owner/repo", "--quiet"],
+                    env={"GITHUB_TOKEN": "ghp_test"},
+                )
+
+        assert result.output == ""
+        assert result.exit_code == 1  # Semantic exit code
+
+    @pytest.mark.parametrize(
+        "status,expected_code",
+        [
+            (PRStatus.READY, 0),
+            (PRStatus.ACTION_REQUIRED, 1),
+            (PRStatus.UNRESOLVED_THREADS, 2),
+            (PRStatus.CI_FAILING, 3),
+            (PRStatus.ERROR, 4),
+        ],
+    )
+    def test_quiet_mode_uses_semantic_exit_codes(
+        self, cli_runner: CliRunner, make_result, status: PRStatus, expected_code: int
+    ):
+        """Quiet mode should use semantic exit codes."""
+        result_model = make_result(status)
+
+        with patch("goodtogo.cli.Container") as mock_container_cls:
+            mock_container = MagicMock()
+            mock_container_cls.create_default.return_value = mock_container
+
+            with patch("goodtogo.cli.PRAnalyzer") as mock_analyzer_cls:
+                mock_analyzer = MagicMock()
+                mock_analyzer.analyze.return_value = result_model
+                mock_analyzer_cls.return_value = mock_analyzer
+
+                result = cli_runner.invoke(
+                    main,
+                    ["123", "--repo", "owner/repo", "-q"],
+                    env={"GITHUB_TOKEN": "ghp_test"},
+                )
+
+        assert result.exit_code == expected_code
+        assert result.output == ""  # No output in quiet mode
+
+    def test_help_shows_quiet_option(self, cli_runner: CliRunner):
+        """--help should document the -q/--quiet option."""
+        result = cli_runner.invoke(main, ["--help"])
+
+        assert "-q" in result.output or "--quiet" in result.output
+        assert "Quiet mode" in result.output or "quiet" in result.output.lower()
+
+    def test_help_shows_semantic_codes_option(self, cli_runner: CliRunner):
+        """--help should document the --semantic-codes option."""
+        result = cli_runner.invoke(main, ["--help"])
+
+        assert "--semantic-codes" in result.output

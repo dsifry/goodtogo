@@ -20,6 +20,7 @@ from goodtogo.core.models import (
     PRStatus,
     ReviewerType,
     ThreadSummary,
+    UnresolvedThread,
 )
 
 
@@ -196,6 +197,7 @@ class TestCommentModel:
             "line_number": 42,
             "created_at": "2026-01-15T10:30:00Z",
             "addressed_in_commit": None,
+            "url": "https://github.com/org/repo/pull/123#discussion_r123",
         }
 
     def test_instantiation_with_valid_data(self, valid_comment_data):
@@ -215,6 +217,7 @@ class TestCommentModel:
         assert comment.line_number == 42
         assert comment.created_at == "2026-01-15T10:30:00Z"
         assert comment.addressed_in_commit is None
+        assert comment.url == "https://github.com/org/repo/pull/123#discussion_r123"
 
     def test_optional_fields_accept_none(self, valid_comment_data):
         """Optional fields accept None values."""
@@ -222,12 +225,14 @@ class TestCommentModel:
         valid_comment_data["file_path"] = None
         valid_comment_data["line_number"] = None
         valid_comment_data["addressed_in_commit"] = None
+        valid_comment_data["url"] = None
 
         comment = Comment(**valid_comment_data)
         assert comment.thread_id is None
         assert comment.file_path is None
         assert comment.line_number is None
         assert comment.addressed_in_commit is None
+        assert comment.url is None
 
     def test_missing_required_field_raises(self, valid_comment_data):
         """Missing required field raises ValidationError."""
@@ -360,17 +365,95 @@ class TestCIStatusModel:
         assert data["checks"][0]["name"] == "build"
 
 
+class TestUnresolvedThreadModel:
+    """Tests for UnresolvedThread Pydantic model."""
+
+    @pytest.fixture
+    def valid_unresolved_thread_data(self):
+        """Provide valid unresolved thread data for testing."""
+        return {
+            "id": "PRRT_kwDOABC123",
+            "url": "https://github.com/org/repo/pull/123#discussion_r456",
+            "path": "src/main.py",
+            "line": 42,
+            "author": "reviewer",
+            "body_preview": "This needs to be fixed...",
+        }
+
+    def test_instantiation_with_valid_data(self, valid_unresolved_thread_data):
+        """UnresolvedThread model instantiates correctly with valid data."""
+        thread = UnresolvedThread(**valid_unresolved_thread_data)
+        assert thread.id == "PRRT_kwDOABC123"
+        assert thread.url == "https://github.com/org/repo/pull/123#discussion_r456"
+        assert thread.path == "src/main.py"
+        assert thread.line == 42
+        assert thread.author == "reviewer"
+        assert thread.body_preview == "This needs to be fixed..."
+
+    def test_optional_fields_accept_none(self, valid_unresolved_thread_data):
+        """Optional fields accept None values."""
+        valid_unresolved_thread_data["url"] = None
+        valid_unresolved_thread_data["line"] = None
+
+        thread = UnresolvedThread(**valid_unresolved_thread_data)
+        assert thread.url is None
+        assert thread.line is None
+
+    def test_missing_required_field_raises(self, valid_unresolved_thread_data):
+        """Missing required field raises ValidationError."""
+        del valid_unresolved_thread_data["id"]
+        with pytest.raises(ValidationError):
+            UnresolvedThread(**valid_unresolved_thread_data)
+
+    def test_serialization_to_json(self, valid_unresolved_thread_data):
+        """UnresolvedThread model serializes to JSON correctly."""
+        thread = UnresolvedThread(**valid_unresolved_thread_data)
+        json_str = thread.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["id"] == "PRRT_kwDOABC123"
+        assert data["path"] == "src/main.py"
+        assert data["author"] == "reviewer"
+
+    def test_body_preview_truncation(self):
+        """body_preview field stores provided value (truncation is done by caller)."""
+        long_body = "x" * 200
+        data = {
+            "id": "thread_1",
+            "url": None,
+            "path": "test.py",
+            "line": 1,
+            "author": "user",
+            "body_preview": long_body,
+        }
+        thread = UnresolvedThread(**data)
+        assert len(thread.body_preview) == 200
+
+
 class TestThreadSummaryModel:
     """Tests for ThreadSummary Pydantic model."""
 
     @pytest.fixture
-    def valid_thread_summary_data(self):
+    def valid_unresolved_thread(self):
+        """Provide a valid unresolved thread for testing."""
+        return {
+            "id": "PRRT_kwDOABC123",
+            "url": "https://github.com/org/repo/pull/123#discussion_r456",
+            "path": "src/main.py",
+            "line": 42,
+            "author": "reviewer",
+            "body_preview": "This needs to be fixed...",
+        }
+
+    @pytest.fixture
+    def valid_thread_summary_data(self, valid_unresolved_thread):
         """Provide valid thread summary data for testing."""
         return {
             "total": 10,
             "resolved": 8,
             "unresolved": 2,
             "outdated": 1,
+            "unresolved_threads": [valid_unresolved_thread],
         }
 
     def test_instantiation_with_valid_data(self, valid_thread_summary_data):
@@ -380,12 +463,21 @@ class TestThreadSummaryModel:
         assert summary.resolved == 8
         assert summary.unresolved == 2
         assert summary.outdated == 1
+        assert len(summary.unresolved_threads) == 1
+        assert summary.unresolved_threads[0].id == "PRRT_kwDOABC123"
 
     def test_zero_values_valid(self):
         """Zero values are valid for all counts."""
-        data = {"total": 0, "resolved": 0, "unresolved": 0, "outdated": 0}
+        data = {
+            "total": 0,
+            "resolved": 0,
+            "unresolved": 0,
+            "outdated": 0,
+            "unresolved_threads": [],
+        }
         summary = ThreadSummary(**data)
         assert summary.total == 0
+        assert summary.unresolved_threads == []
 
     def test_missing_required_field_raises(self, valid_thread_summary_data):
         """Missing required field raises ValidationError."""
@@ -407,6 +499,22 @@ class TestThreadSummaryModel:
 
         assert data["total"] == 10
         assert data["resolved"] == 8
+        assert len(data["unresolved_threads"]) == 1
+        assert data["unresolved_threads"][0]["id"] == "PRRT_kwDOABC123"
+
+    def test_multiple_unresolved_threads(self, valid_unresolved_thread):
+        """ThreadSummary accepts multiple unresolved threads."""
+        thread2 = {**valid_unresolved_thread, "id": "PRRT_kwDODEF456", "path": "other.py"}
+        data = {
+            "total": 5,
+            "resolved": 3,
+            "unresolved": 2,
+            "outdated": 0,
+            "unresolved_threads": [valid_unresolved_thread, thread2],
+        }
+        summary = ThreadSummary(**data)
+        assert len(summary.unresolved_threads) == 2
+        assert summary.unresolved_threads[1].path == "other.py"
 
 
 class TestCacheStatsModel:
@@ -479,6 +587,7 @@ class TestPRAnalysisResultModel:
                 "resolved": 5,
                 "unresolved": 0,
                 "outdated": 0,
+                "unresolved_threads": [],
             },
             "comments": [],
             "actionable_comments": [],
@@ -572,6 +681,7 @@ class TestPRAnalysisResultModel:
             "line_number": 10,
             "created_at": "2026-01-15T10:00:00Z",
             "addressed_in_commit": None,
+            "url": "https://github.com/org/repo/pull/123#discussion_r1",
         }
         valid_analysis_result_data["comments"] = [comment_data]
         valid_analysis_result_data["actionable_comments"] = [comment_data]

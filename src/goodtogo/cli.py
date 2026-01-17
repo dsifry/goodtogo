@@ -4,7 +4,11 @@ This module provides a command-line interface for the GoodToMerge library,
 enabling AI agents and humans to check PR readiness from the terminal or
 CI/CD pipelines.
 
-Exit codes:
+Exit codes (default - AI-friendly mode):
+    0 - Any analyzable state (READY, ACTION_REQUIRED, UNRESOLVED_THREADS, CI_FAILING)
+    4 - Error fetching data (PRStatus.ERROR)
+
+Exit codes (with -q or --semantic-codes):
     0 - Ready to merge (PRStatus.READY)
     1 - Actionable comments need addressing (PRStatus.ACTION_REQUIRED)
     2 - Unresolved threads exist (PRStatus.UNRESOLVED_THREADS)
@@ -12,9 +16,10 @@ Exit codes:
     4 - Error fetching data (PRStatus.ERROR)
 
 Example:
-    $ gtm 123 --repo myorg/myrepo
-    $ gtm 123 --repo myorg/myrepo --format text --verbose
-    $ gtm 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
+    $ gtg 123 --repo myorg/myrepo
+    $ gtg 123 --repo myorg/myrepo --format text --verbose
+    $ gtg 123 --repo myorg/myrepo -q  # quiet mode with semantic exit codes
+    $ gtg 123 --repo myorg/myrepo --semantic-codes  # semantic exit codes with output
 """
 
 from __future__ import annotations
@@ -31,11 +36,21 @@ from goodtogo.core.analyzer import PRAnalyzer
 from goodtogo.core.errors import redact_error
 from goodtogo.core.models import PRAnalysisResult, PRStatus
 
-EXIT_CODES: dict[PRStatus, int] = {
+# Semantic exit codes for shell scripting (-q or --semantic-codes)
+SEMANTIC_EXIT_CODES: dict[PRStatus, int] = {
     PRStatus.READY: 0,
     PRStatus.ACTION_REQUIRED: 1,
     PRStatus.UNRESOLVED_THREADS: 2,
     PRStatus.CI_FAILING: 3,
+    PRStatus.ERROR: 4,
+}
+
+# AI-friendly exit codes (default) - only ERROR is non-zero
+AI_FRIENDLY_EXIT_CODES: dict[PRStatus, int] = {
+    PRStatus.READY: 0,
+    PRStatus.ACTION_REQUIRED: 0,
+    PRStatus.UNRESOLVED_THREADS: 0,
+    PRStatus.CI_FAILING: 0,
     PRStatus.ERROR: 4,
 }
 
@@ -83,6 +98,17 @@ EXIT_CODES: dict[PRStatus, int] = {
     multiple=True,
     help="CI check names to exclude (can be repeated)",
 )
+@click.option(
+    "-q",
+    "--quiet",
+    is_flag=True,
+    help="Quiet mode: no output, use semantic exit codes (like grep -q)",
+)
+@click.option(
+    "--semantic-codes",
+    is_flag=True,
+    help="Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error)",
+)
 @click.version_option(version=__version__)
 def main(
     pr_number: int,
@@ -93,12 +119,18 @@ def main(
     output_format: str,
     verbose: bool,
     exclude_checks: tuple[str, ...],
+    quiet: bool,
+    semantic_codes: bool,
 ) -> None:
     """Check if a PR is ready to merge.
 
     PR_NUMBER is the pull request number to check.
 
-    Exit codes:
+    Exit codes (default - AI-friendly):
+      0 - Any analyzable state (ready, action required, threads, CI)
+      4 - Error fetching data
+
+    Exit codes (with -q or --semantic-codes):
       0 - Ready to merge
       1 - Actionable comments need addressing
       2 - Unresolved threads exist
@@ -140,13 +172,18 @@ def main(
             )
         sys.exit(4)
 
-    # Output result in requested format
-    if output_format == "json":
-        click.echo(result.model_dump_json(indent=2))
-    else:
-        _print_text_output(result, verbose)
+    # Determine which exit code mapping to use
+    use_semantic = quiet or semantic_codes
+    exit_codes = SEMANTIC_EXIT_CODES if use_semantic else AI_FRIENDLY_EXIT_CODES
 
-    sys.exit(EXIT_CODES[result.status])
+    # Output result in requested format (skip if quiet mode)
+    if not quiet:
+        if output_format == "json":
+            click.echo(result.model_dump_json(indent=2))
+        else:
+            _print_text_output(result, verbose)
+
+    sys.exit(exit_codes[result.status])
 
 
 def _print_text_output(result: PRAnalysisResult, verbose: bool) -> None:

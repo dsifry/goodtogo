@@ -23,18 +23,14 @@ gtg --version
 
 Good To Go needs a GitHub token to access PR data.
 
-### Environment Variable (Recommended)
+### Environment Variable (Required)
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-gtg check owner/repo 123
+gtg 123 --repo owner/repo
 ```
 
-### Command Line Flag
-
-```bash
-gtg check owner/repo 123 --token ghp_your_token_here
-```
+Note: The CLI reads `GITHUB_TOKEN` from the environment. There is no `--token` flag for security reasons.
 
 ### Creating a Token
 
@@ -45,62 +41,93 @@ gtg check owner/repo 123 --token ghp_your_token_here
 
 ## Commands
 
-### `gtg check`
+### `gtg`
 
 Check if a PR is ready to merge.
 
 ```bash
-gtg check <owner/repo> <pr_number> [OPTIONS]
+gtg <pr_number> --repo <owner/repo> [OPTIONS]
 ```
 
 #### Arguments
 
 | Argument | Description |
 |----------|-------------|
-| `owner/repo` | Repository in format `owner/repo` (e.g., `facebook/react`) |
 | `pr_number` | Pull request number |
 
 #### Options
 
 | Option | Description |
 |--------|-------------|
-| `--token`, `-t` | GitHub token (overrides GITHUB_TOKEN env var) |
-| `--json`, `-j` | Output results as JSON |
-| `--no-cache` | Disable caching (always fetch fresh data) |
-| `--verbose`, `-v` | Show detailed output |
+| `--repo`, `-r` | Repository in format `owner/repo` (e.g., `facebook/react`) - **required** |
+| `--format` | Output format: `json` (default) or `text` |
+| `--cache` | Cache backend: `sqlite` (default), `redis`, or `none` |
+| `--cache-path` | SQLite cache path (default: `.goodtogo/cache.db`) |
+| `--redis-url` | Redis URL (required if `--cache=redis`, or set `REDIS_URL` env var) |
+| `--verbose`, `-v` | Show detailed output (includes ambiguous comments) |
+| `-q`, `--quiet` | Quiet mode: no output, use semantic exit codes (like `grep -q`) |
+| `--semantic-codes` | Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error) |
+| `--version` | Show version number |
 
 #### Examples
 
 ```bash
-# Basic check
-gtg check myorg/myrepo 123
+# Basic check (JSON output by default, AI-friendly exit codes)
+gtg 123 --repo myorg/myrepo
 
-# JSON output for scripting
-gtg check myorg/myrepo 123 --json
+# Human-readable text output
+gtg 123 --repo myorg/myrepo --format text
 
-# Verbose output
-gtg check myorg/myrepo 123 --verbose
+# Verbose output (shows ambiguous comments)
+gtg 123 --repo myorg/myrepo --format text --verbose
 
-# Fresh data (no cache)
-gtg check myorg/myrepo 123 --no-cache
+# Quiet mode for shell scripts (semantic exit codes, no output)
+gtg 123 --repo myorg/myrepo -q
+
+# Semantic exit codes with output
+gtg 123 --repo myorg/myrepo --semantic-codes
+
+# Disable caching
+gtg 123 --repo myorg/myrepo --cache none
+
+# Use Redis cache
+gtg 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
 ```
 
 ## Exit Codes
 
-Good To Go uses exit codes for deterministic status reporting:
+Good To Go supports two exit code modes:
 
-| Code | Status | Description | Action |
-|------|--------|-------------|--------|
-| 0 | `READY` | PR is ready to merge | Proceed with merge |
-| 1 | `ACTION_REQUIRED` | Actionable comments exist | Address the comments |
-| 2 | `UNRESOLVED` | Unresolved review threads | Resolve threads |
-| 3 | `CI_FAILING` | CI checks failing/pending | Wait for CI or fix failures |
-| 4 | `ERROR` | Error fetching data | Check token/connectivity |
+### Default Mode (AI-friendly)
+
+By default, gtg returns 0 for any analyzable state. This is optimized for AI agents that interpret non-zero exit codes as errors:
+
+| Code | Description |
+|------|-------------|
+| 0 | Any analyzable state (READY, ACTION_REQUIRED, UNRESOLVED, CI_FAILING) |
+| 4 | Error fetching data |
+
+Parse the JSON `status` field to determine the actual PR state.
+
+### Semantic Mode (`-q` or `--semantic-codes`)
+
+For shell scripts that need different exit codes per status:
+
+| Code | Status | Description |
+|------|--------|-------------|
+| 0 | `READY` | PR is ready to merge |
+| 1 | `ACTION_REQUIRED` | Actionable comments exist |
+| 2 | `UNRESOLVED` | Unresolved review threads |
+| 3 | `CI_FAILING` | CI checks failing/pending |
+| 4 | `ERROR` | Error fetching data |
+
+Use `-q` for quiet mode (semantic codes, no output) or `--semantic-codes` for semantic codes with output.
 
 ### Using Exit Codes in Scripts
 
 ```bash
-gtg check owner/repo 123
+# For shell scripts that need semantic exit codes, use -q (quiet mode)
+gtg 123 --repo owner/repo -q
 case $? in
   0) echo "Ready to merge!" ;;
   1) echo "Comments need attention" ;;
@@ -108,11 +135,103 @@ case $? in
   3) echo "CI not passing" ;;
   4) echo "Error occurred" ;;
 esac
+
+# Or use --semantic-codes if you also want the output
+gtg 123 --repo owner/repo --semantic-codes --format text
+```
+
+## Text Output Format
+
+With `--format text`, Good To Go outputs human-readable status information:
+
+```bash
+gtg 123 --repo myorg/myrepo --format text
+```
+
+### Status Icons
+
+| Icon | Status | Meaning |
+|------|--------|---------|
+| `OK` | READY | All clear - good to go! |
+| `!!` | ACTION_REQUIRED | Actionable comments need fixes |
+| `??` | UNRESOLVED_THREADS | Unresolved review threads |
+| `XX` | CI_FAILING | CI/CD checks failing |
+| `##` | ERROR | Error fetching PR data |
+
+### Example Output by Status
+
+**READY (Exit Code 0)** - All clear, ready to merge:
+```
+OK PR #123: READY
+   CI: success (5/5 passed)
+   Threads: 3/3 resolved
+```
+
+**ACTION_REQUIRED (Exit Code 1)** - Actionable comments need attention:
+```
+!! PR #456: ACTION_REQUIRED
+   CI: success (5/5 passed)
+   Threads: 8/8 resolved
+
+Action required:
+   - Fix CRITICAL comment from coderabbit in src/db.py:42
+   - 2 comments require investigation (ambiguous)
+```
+
+**UNRESOLVED_THREADS (Exit Code 2)** - Review threads need resolution:
+```
+?? PR #789: UNRESOLVED_THREADS
+   CI: success (5/5 passed)
+   Threads: 2/4 resolved
+
+Action required:
+   - 2 unresolved review threads need attention
+```
+
+**CI_FAILING (Exit Code 3)** - CI checks not passing:
+```
+XX PR #101: CI_FAILING
+   CI: failure (3/5 passed)
+   Threads: 2/2 resolved
+
+Action required:
+   - CI checks are failing - fix build/test errors
+```
+
+**CI_PENDING** - CI still running:
+```
+XX PR #202: CI_FAILING
+   CI: pending (8/12 passed)
+   Threads: 2/2 resolved
+
+Action required:
+   - CI checks are still running - wait for completion
+```
+
+### Verbose Output
+
+With `--verbose`, the text output also shows ambiguous comments that may need investigation:
+
+```bash
+gtg 123 --repo myorg/myrepo --format text --verbose
+```
+
+```
+!! PR #123: ACTION_REQUIRED
+   CI: success (5/5 passed)
+   Threads: 8/8 resolved
+
+Action required:
+   - Fix CRITICAL comment from coderabbit in src/db.py:42
+
+Ambiguous (needs investigation):
+   - [coderabbitai[bot]] Consider using a connection pool for better performance...
+   - [greptile[bot]] This pattern might cause issues in high-concurrency scenarios...
 ```
 
 ## JSON Output Format
 
-With `--json`, Good To Go outputs structured data:
+With `--format json`, Good To Go outputs structured data:
 
 ```json
 {

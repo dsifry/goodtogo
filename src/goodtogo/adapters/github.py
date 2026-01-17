@@ -12,12 +12,12 @@ Security features:
 
 from __future__ import annotations
 
-import time
 from typing import Any, Optional, cast
 
 import httpx
 
-from goodtogo.core.interfaces import GitHubPort
+from goodtogo.adapters.time_provider import SystemTimeProvider
+from goodtogo.core.interfaces import GitHubPort, TimeProvider
 
 
 class GitHubRateLimitError(Exception):
@@ -82,15 +82,18 @@ class GitHubAdapter(GitHubPort):
     BASE_URL = "https://api.github.com"
     GRAPHQL_URL = "https://api.github.com/graphql"
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, time_provider: Optional[TimeProvider] = None) -> None:
         """Initialize the GitHub adapter.
 
         Args:
             token: GitHub personal access token or OAuth token.
                    Must have 'repo' scope for private repositories.
+            time_provider: Optional TimeProvider for time operations.
+                           Defaults to SystemTimeProvider if not provided.
         """
         # Token stored in private attribute - never log, cache, or serialize
         self._token = token
+        self._time_provider = time_provider or SystemTimeProvider()
         self._client = httpx.Client(
             base_url=self.BASE_URL,
             headers={
@@ -140,7 +143,7 @@ class GitHubAdapter(GitHubPort):
             remaining = response.headers.get("X-RateLimit-Remaining", "unknown")
             if remaining == "0":
                 reset_at = int(response.headers.get("X-RateLimit-Reset", "0"))
-                retry_after = max(0, reset_at - int(time.time()))
+                retry_after = max(0, reset_at - self._time_provider.now_int())
                 raise GitHubRateLimitError(
                     f"GitHub API rate limit exceeded. Resets in {retry_after} seconds.",
                     reset_at=reset_at,
@@ -150,7 +153,7 @@ class GitHubAdapter(GitHubPort):
         # Check for secondary rate limiting
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", "60"))
-            reset_at = int(time.time()) + retry_after
+            reset_at = self._time_provider.now_int() + retry_after
             raise GitHubRateLimitError(
                 f"GitHub API secondary rate limit. Retry after {retry_after} seconds.",
                 reset_at=reset_at,

@@ -268,6 +268,48 @@ class CachePort(ABC):
         pass
 
 
+class TimeProvider(ABC):
+    """Abstract interface for time operations.
+
+    This port defines the contract for time-related operations, enabling
+    dependency injection of time for deterministic testing. Production
+    code uses real system time; tests use a controllable mock.
+
+    This pattern eliminates flaky tests caused by real time.sleep() calls
+    and non-deterministic time.time() values.
+    """
+
+    @abstractmethod
+    def now(self) -> float:
+        """Get current time as Unix timestamp.
+
+        Returns:
+            Current time as seconds since epoch (float).
+        """
+        pass
+
+    @abstractmethod
+    def now_int(self) -> int:
+        """Get current time as Unix timestamp (integer).
+
+        Returns:
+            Current time as seconds since epoch (int).
+        """
+        pass
+
+    @abstractmethod
+    def sleep(self, seconds: float) -> None:
+        """Sleep for the specified duration.
+
+        In production, this calls time.sleep().
+        In tests, this can advance simulated time instantly.
+
+        Args:
+            seconds: Duration to sleep in seconds.
+        """
+        pass
+
+
 class ReviewerParser(ABC):
     """Abstract interface for reviewer-specific parsing.
 

@@ -6,7 +6,7 @@ including cache creation for different backends.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -138,6 +138,7 @@ class TestContainerCreateDefault:
             "redis",
             ".goodtogo/cache.db",
             "redis://localhost:6379",
+            ANY,  # time_provider
         )
 
     def test_create_default_with_none_cache(self):
@@ -167,7 +168,10 @@ class TestContainerCreateDefault:
                 cache_path=cache_path,
             )
 
-        mock_github.assert_called_once_with(token="ghp_my_secret_token")
+        mock_github.assert_called_once_with(
+            token="ghp_my_secret_token",
+            time_provider=ANY,
+        )
 
 
 # ============================================================================
