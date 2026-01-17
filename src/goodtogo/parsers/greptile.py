@@ -64,6 +64,18 @@ class GreptileParser(ReviewerParser):
         (re.compile(r"\*\*nitpick[:\s]", re.IGNORECASE), Priority.TRIVIAL),
     ]
 
+    # PR-level summary comment patterns (non-actionable)
+    # These are posted at the PR level (path=None) and contain overview information.
+    # The actual actionable items are in inline comments.
+    PR_SUMMARY_PATTERNS = [
+        # Greptile Summary HTML header
+        re.compile(r"<h3>Greptile Summary</h3>", re.IGNORECASE),
+        # "N files reviewed" pattern
+        re.compile(r"\d+\s+files?\s+reviewed", re.IGNORECASE),
+        # Edit Code Review Agent Settings link
+        re.compile(r"Edit Code Review Agent Settings", re.IGNORECASE),
+    ]
+
     @property
     def reviewer_type(self) -> ReviewerType:
         """Return the reviewer type this parser handles.
@@ -101,16 +113,18 @@ class GreptileParser(ReviewerParser):
         """Parse comment and return classification.
 
         Classification logic (per design spec):
-        1. "Actionable comments posted: 0" -> NON_ACTIONABLE
-        2. "Actionable comments posted: N" (N > 0) -> ACTIONABLE, MINOR
-        3. Review summary only -> NON_ACTIONABLE
-        4. Severity markers (**logic:**, **bug:**) -> ACTIONABLE with priority
-        5. Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+        1. PR-level summary comments -> NON_ACTIONABLE
+        2. "Actionable comments posted: 0" -> NON_ACTIONABLE
+        3. "Actionable comments posted: N" (N > 0) -> ACTIONABLE, MINOR
+        4. Review summary only -> NON_ACTIONABLE
+        5. Severity markers (**logic:**, **bug:**) -> ACTIONABLE with priority
+        6. Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
 
         Args:
             comment: Dictionary containing comment data with at least:
                 - 'body': Comment text content
                 - 'user': Dictionary with 'login' key
+                - Optionally 'path' and 'line' for inline comments
 
         Returns:
             Tuple of (classification, priority, requires_investigation):
@@ -118,6 +132,11 @@ class GreptileParser(ReviewerParser):
             - priority: Priority enum value
             - requires_investigation: Boolean, True for AMBIGUOUS comments
         """
+        # Check for PR-level summary comments first (highest precedence)
+        # These are posted at the PR level and contain overview information
+        if self._is_pr_summary_comment(comment):
+            return CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False
+
         body = comment.get("body", "")
 
         # Check for "Actionable comments posted: N" pattern
@@ -186,3 +205,45 @@ class GreptileParser(ReviewerParser):
                     return CommentClassification.NON_ACTIONABLE, priority, False
                 return CommentClassification.ACTIONABLE, priority, False
         return None
+
+    def _is_pr_summary_comment(self, comment: dict) -> bool:
+        """Check if this is a PR-level summary comment.
+
+        PR-level summary comments are posted at the PR level (not inline)
+        and contain overview information like Greptile Summary headers,
+        "N files reviewed" counts, or settings links. These should be
+        classified as NON_ACTIONABLE because the actual actionable items
+        are in inline comments.
+
+        Key criteria:
+        1. Must be a PR-level comment (path=None or missing)
+        2. Must match one of the PR summary patterns
+
+        Args:
+            comment: Dictionary containing comment data with 'body' key,
+                and optionally 'path' and 'line' keys.
+
+        Returns:
+            True if this is a PR-level summary comment that should be
+            classified as NON_ACTIONABLE.
+        """
+        # Only filter PR-level comments (path=None or missing)
+        # Never filter inline comments (they have path/line set)
+        path = comment.get("path")
+        if path is not None:
+            return False
+
+        body = comment.get("body", "")
+        if not body:
+            return False
+
+        # Check for PR summary patterns
+        for pattern in self.PR_SUMMARY_PATTERNS:
+            if pattern.search(body):
+                return True
+
+        # Also check for review summary content at PR level
+        if self._is_review_summary(body):
+            return True
+
+        return False

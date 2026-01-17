@@ -106,6 +106,21 @@ class CodeRabbitParser(ReviewerParser):
         re.compile(r"^>\s*\[!INFO\]", re.MULTILINE),
     ]
 
+    # PR-level summary comment patterns (non-actionable)
+    # These are posted at the PR level (path=None, line=None) and contain
+    # overview information. The actual actionable items are in inline comments.
+    PR_SUMMARY_PATTERNS = [
+        # "Actionable comments posted: N" pattern
+        re.compile(r"Actionable comments posted:\s*\d+", re.IGNORECASE),
+        # <details> sections with summaries
+        re.compile(r"<details>.*?<summary>.*?</summary>", re.IGNORECASE | re.DOTALL),
+        # CodeRabbit auto-generated comment signature
+        re.compile(
+            r"<!-- This is an auto-generated comment.*?by coderabbit",
+            re.IGNORECASE | re.DOTALL,
+        ),
+    ]
+
     @property
     def reviewer_type(self) -> ReviewerType:
         """Return the reviewer type this parser handles.
@@ -146,20 +161,22 @@ class CodeRabbitParser(ReviewerParser):
         based on CodeRabbit's severity indicators.
 
         Classification rules (in order of precedence):
-            1. Fingerprinting comments -> NON_ACTIONABLE
-            2. Addressed marker -> NON_ACTIONABLE
-            3. Critical severity -> ACTIONABLE, CRITICAL
-            4. Major severity -> ACTIONABLE, MAJOR
-            5. Minor severity -> ACTIONABLE, MINOR
-            6. Trivial severity -> NON_ACTIONABLE, TRIVIAL
-            7. Nitpick marker -> NON_ACTIONABLE, TRIVIAL
-            8. Outside diff range -> ACTIONABLE, MINOR
-            9. Summary/walkthrough sections -> NON_ACTIONABLE
-            10. Tip/info boxes -> NON_ACTIONABLE
-            11. All other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+            1. PR-level summary comments -> NON_ACTIONABLE
+            2. Fingerprinting comments -> NON_ACTIONABLE
+            3. Addressed marker -> NON_ACTIONABLE
+            4. Critical severity -> ACTIONABLE, CRITICAL
+            5. Major severity -> ACTIONABLE, MAJOR
+            6. Minor severity -> ACTIONABLE, MINOR
+            7. Trivial severity -> NON_ACTIONABLE, TRIVIAL
+            8. Nitpick marker -> NON_ACTIONABLE, TRIVIAL
+            9. Outside diff range -> ACTIONABLE, MINOR
+            10. Summary/walkthrough sections -> NON_ACTIONABLE
+            11. Tip/info boxes -> NON_ACTIONABLE
+            12. All other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
 
         Args:
-            comment: Dictionary containing comment data with 'body' key.
+            comment: Dictionary containing comment data with 'body' key,
+                and optionally 'path' and 'line' keys for inline comments.
 
         Returns:
             Tuple of (classification, priority, requires_investigation):
@@ -167,6 +184,11 @@ class CodeRabbitParser(ReviewerParser):
             - priority: Priority enum value
             - requires_investigation: Boolean, True for AMBIGUOUS comments
         """
+        # Check for PR-level summary comments first (highest precedence)
+        # These are posted at the PR level and contain overview information
+        if self._is_pr_summary_comment(comment):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
         body = comment.get("body", "")
 
         # Early exit for empty body
@@ -246,4 +268,46 @@ class CodeRabbitParser(ReviewerParser):
         for pattern in self.TIP_PATTERNS:
             if pattern.search(body):
                 return True
+        return False
+
+    def _is_pr_summary_comment(self, comment: dict) -> bool:
+        """Check if this is a PR-level summary comment.
+
+        PR-level summary comments are posted at the PR level (not inline)
+        and contain overview information like "Actionable comments posted: N",
+        walkthrough sections, or CodeRabbit signatures. These should be
+        classified as NON_ACTIONABLE because the actual actionable items
+        are in inline comments.
+
+        Key criteria:
+        1. Must be a PR-level comment (path=None or missing)
+        2. Must match one of the PR summary patterns
+
+        Args:
+            comment: Dictionary containing comment data with 'body' key,
+                and optionally 'path' and 'line' keys.
+
+        Returns:
+            True if this is a PR-level summary comment that should be
+            classified as NON_ACTIONABLE.
+        """
+        # Only filter PR-level comments (path=None or missing)
+        # Never filter inline comments (they have path/line set)
+        path = comment.get("path")
+        if path is not None:
+            return False
+
+        body = comment.get("body", "")
+        if not body:
+            return False
+
+        # Check for PR summary patterns
+        for pattern in self.PR_SUMMARY_PATTERNS:
+            if pattern.search(body):
+                return True
+
+        # Also check for summary/walkthrough content at PR level
+        if self._is_summary_content(body):
+            return True
+
         return False
