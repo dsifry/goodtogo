@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PRStatus(str, Enum):
@@ -195,6 +195,34 @@ class CIStatus(BaseModel):
     """List of individual CI check results."""
 
 
+class OutsideDiffComment(BaseModel):
+    """Comment about code outside the diff range.
+
+    CodeRabbit and other reviewers sometimes embed actionable feedback
+    in review bodies under "Outside diff range" sections. These are NOT
+    individual comment threads and cannot be replied to inline, but often
+    contain valuable feedback that should be surfaced.
+    """
+
+    source: str
+    """Source reviewer (e.g., 'coderabbitai[bot]')."""
+
+    review_id: str
+    """ID of the review containing this comment."""
+
+    file_path: str
+    """Path to the file this comment references."""
+
+    line_range: Optional[str]
+    """Line range (e.g., '42-45' or '100'), if specified."""
+
+    body: str
+    """The suggestion or feedback text."""
+
+    review_url: Optional[str]
+    """URL to the review on GitHub, for navigation."""
+
+
 class UnresolvedThread(BaseModel):
     """Detailed information about an unresolved review thread.
 
@@ -301,6 +329,9 @@ class PRAnalysisResult(BaseModel):
 
     ambiguous_comments: list[Comment]
     """Filtered list of comments requiring investigation."""
+
+    outside_diff_comments: list[OutsideDiffComment] = Field(default_factory=list)
+    """Comments about code outside the diff range, extracted from review bodies."""
 
     action_items: list[str]
     """Human-readable list of actions needed."""

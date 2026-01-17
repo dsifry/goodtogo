@@ -238,3 +238,161 @@ Consider adding a comment.
             assert result.actionable_comments[0].id == "2"
 
             agent_state.close()
+
+
+class TestAnalyzerOutsideDiffComments:
+    """Tests for parsing 'Outside diff range' comments from review bodies."""
+
+    def test_outside_diff_comments_extracted_from_coderabbit_reviews(
+        self, mock_github, make_pr_data, make_ci_status, make_review
+    ):
+        """Test that outside diff comments are extracted from CodeRabbit review bodies."""
+        # Setup mock GitHub with a CodeRabbit review containing outside diff comments
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews(
+            [
+                make_review(
+                    review_id=456,
+                    author="coderabbitai[bot]",
+                    body="""## Summary
+
+This PR looks good overall.
+
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (2)</summary>
+
+**src/config.py:42-45**: Consider adding validation for the config values.
+
+**src/utils.py:100**: This function could use memoization for performance.
+
+</details>
+""",
+                )
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        # Run full analysis
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Verify outside diff comments were extracted
+        assert len(result.outside_diff_comments) == 2
+
+        assert result.outside_diff_comments[0].file_path == "src/config.py"
+        assert result.outside_diff_comments[0].line_range == "42-45"
+        assert "validation" in result.outside_diff_comments[0].body
+        assert result.outside_diff_comments[0].source == "coderabbitai[bot]"
+
+        assert result.outside_diff_comments[1].file_path == "src/utils.py"
+        assert result.outside_diff_comments[1].line_range == "100"
+        assert "memoization" in result.outside_diff_comments[1].body
+
+    def test_outside_diff_comments_empty_when_no_coderabbit_reviews(
+        self, mock_github, make_pr_data, make_ci_status, make_review
+    ):
+        """Test that outside_diff_comments is empty when no CodeRabbit reviews exist."""
+        # Setup mock GitHub with a non-CodeRabbit review
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews(
+            [
+                make_review(
+                    review_id=456,
+                    author="regular-user",
+                    body="LGTM!",
+                )
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        # Run full analysis
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Verify outside_diff_comments is empty
+        assert len(result.outside_diff_comments) == 0
+
+    def test_outside_diff_comments_empty_when_review_has_no_section(
+        self, mock_github, make_pr_data, make_ci_status, make_review
+    ):
+        """Test that outside_diff_comments is empty when review has no outside diff section."""
+        # Setup mock GitHub with a CodeRabbit review without outside diff comments
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews(
+            [
+                make_review(
+                    review_id=456,
+                    author="coderabbitai[bot]",
+                    body="## Summary\n\nThis PR looks good!",
+                )
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        # Run full analysis
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Verify outside_diff_comments is empty
+        assert len(result.outside_diff_comments) == 0
+
+    def test_outside_diff_comments_from_multiple_reviews(
+        self, mock_github, make_pr_data, make_ci_status, make_review
+    ):
+        """Test that outside diff comments are collected from multiple reviews."""
+        # Setup mock GitHub with multiple CodeRabbit reviews
+        mock_github.set_pr_data(make_pr_data(number=123))
+        mock_github.set_comments([])
+        mock_github.set_reviews(
+            [
+                make_review(
+                    review_id=456,
+                    author="coderabbitai[bot]",
+                    body="""
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/config.py:10**: First comment.
+
+</details>
+""",
+                ),
+                make_review(
+                    review_id=789,
+                    author="coderabbitai[bot]",
+                    body="""
+<details>
+<summary>\u26a0\ufe0f Outside diff range comments (1)</summary>
+
+**src/utils.py:20**: Second comment.
+
+</details>
+""",
+                ),
+            ]
+        )
+        mock_github.set_threads([])
+        mock_github.set_ci_status(make_ci_status(state="success"))
+
+        container = Container.create_for_testing(github=mock_github)
+        analyzer = PRAnalyzer(container)
+
+        # Run full analysis
+        result = analyzer.analyze("owner", "repo", 123)
+
+        # Verify outside diff comments from both reviews were collected
+        assert len(result.outside_diff_comments) == 2
+        file_paths = {c.file_path for c in result.outside_diff_comments}
+        assert file_paths == {"src/config.py", "src/utils.py"}

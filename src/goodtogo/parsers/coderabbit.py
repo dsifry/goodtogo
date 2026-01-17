@@ -16,7 +16,12 @@ from __future__ import annotations
 import re
 
 from goodtogo.core.interfaces import ReviewerParser
-from goodtogo.core.models import CommentClassification, Priority, ReviewerType
+from goodtogo.core.models import (
+    CommentClassification,
+    OutsideDiffComment,
+    Priority,
+    ReviewerType,
+)
 
 
 class CodeRabbitParser(ReviewerParser):
@@ -350,3 +355,89 @@ class CodeRabbitParser(ReviewerParser):
             return True
 
         return False
+
+    # Pattern to match the "Outside diff range comments" details section
+    # Matches: <details>\n<summary>... Outside diff range comments (N)</summary>
+    OUTSIDE_DIFF_SECTION_PATTERN = re.compile(
+        r"<details>\s*\n\s*<summary>.*?"
+        r"Outside diff range comments?\s*\(\d+\)\s*"
+        r"</summary>(.*?)</details>",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    # Pattern to extract individual file path and line references
+    # Matches: **src/config.py:42-45**: or **src/utils.py:100**:
+    # Uses [ \t]* instead of \s* to avoid consuming newlines (needed for lookahead)
+    OUTSIDE_DIFF_ITEM_PATTERN = re.compile(
+        r"\*\*([^:*]+):(\d+(?:-\d+)?)\*\*:[ \t]*(.*?)(?=(?:\n\n\*\*[^:*]+:\d)|$)",
+        re.DOTALL,
+    )
+
+    def parse_outside_diff_comments(
+        self,
+        review_body: str,
+        review_id: str,
+        author: str,
+        review_url: str | None = None,
+    ) -> list[OutsideDiffComment]:
+        """Parse "Outside diff range comments" section from a review body.
+
+        CodeRabbit embeds actionable feedback in review bodies under
+        a `<details>` section with summary containing "Outside diff range comments".
+        These are NOT individual comment threads and cannot be replied to inline,
+        but often contain valuable feedback that should be surfaced.
+
+        Example input:
+            <details>
+            <summary>... Outside diff range comments (3)</summary>
+
+            **src/config.py:42-45**: Consider adding validation for the config values.
+
+            **src/utils.py:100**: This function could use memoization for performance.
+
+            </details>
+
+        Args:
+            review_body: The full body text of a review.
+            review_id: The ID of the review (for reference).
+            author: The author of the review (e.g., "coderabbitai[bot]").
+            review_url: Optional URL to the review on GitHub.
+
+        Returns:
+            List of OutsideDiffComment objects extracted from the review body.
+            Returns empty list if no "Outside diff range comments" section is found.
+        """
+        if not review_body:
+            return []
+
+        results: list[OutsideDiffComment] = []
+
+        # Find the outside diff section
+        section_match = self.OUTSIDE_DIFF_SECTION_PATTERN.search(review_body)
+        if not section_match:
+            return []
+
+        section_content = section_match.group(1)
+
+        # Extract individual items from the section
+        for item_match in self.OUTSIDE_DIFF_ITEM_PATTERN.finditer(section_content):
+            file_path = item_match.group(1).strip()
+            line_range = item_match.group(2).strip()
+            body = item_match.group(3).strip()
+
+            # Clean up the body - remove trailing whitespace and empty lines
+            body = body.strip()
+
+            if file_path and body:
+                results.append(
+                    OutsideDiffComment(
+                        source=author,
+                        review_id=review_id,
+                        file_path=file_path,
+                        line_range=line_range if line_range else None,
+                        body=body,
+                        review_url=review_url,
+                    )
+                )
+
+        return results

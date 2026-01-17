@@ -24,6 +24,7 @@ from goodtogo.core.models import (
     CIStatus,
     Comment,
     CommentClassification,
+    OutsideDiffComment,
     PRAnalysisResult,
     Priority,
     PRStatus,
@@ -163,7 +164,7 @@ class PRAnalyzer:
             ci_data = self._get_ci_status(owner, repo, head_sha)
 
             # Step 5-6: Process comments with reviewer identification and parsing
-            all_comments = self._process_comments(
+            all_comments, outside_diff_comments = self._process_comments(
                 owner, repo, comments_data, reviews_data, threads_data
             )
 
@@ -239,6 +240,7 @@ class PRAnalyzer:
                 comments=all_comments,
                 actionable_comments=actionable_comments,
                 ambiguous_comments=ambiguous_comments,
+                outside_diff_comments=outside_diff_comments,
                 action_items=action_items,
                 needs_action=needs_action,
                 cache_stats=cache_stats,
@@ -539,11 +541,12 @@ class PRAnalyzer:
         comments_data: list[dict[str, Any]],
         reviews_data: list[dict[str, Any]],
         threads_data: list[dict[str, Any]],
-    ) -> list[Comment]:
+    ) -> tuple[list[Comment], list[OutsideDiffComment]]:
         """Process all comments and classify them.
 
         Combines comments from inline comments, reviews, and threads,
         identifies the reviewer type, and classifies each comment.
+        Also extracts "Outside diff range" comments from review bodies.
         Caches NON_ACTIONABLE comments for future runs.
 
         Args:
@@ -554,9 +557,12 @@ class PRAnalyzer:
             threads_data: List of threads from GitHub.
 
         Returns:
-            List of Comment objects with classifications.
+            Tuple of (comments, outside_diff_comments):
+            - comments: List of Comment objects with classifications.
+            - outside_diff_comments: List of OutsideDiffComment from review bodies.
         """
         all_comments: list[Comment] = []
+        outside_diff_comments: list[OutsideDiffComment] = []
 
         # Build thread resolution map
         thread_resolution = {}
@@ -573,6 +579,11 @@ class PRAnalyzer:
             # Cache stable (NON_ACTIONABLE) comments
             self._cache_stable_comment(owner, repo, comment_data, comment.classification)
 
+        # Get CodeRabbit parser for extracting outside diff comments
+        from goodtogo.parsers.coderabbit import CodeRabbitParser
+
+        coderabbit_parser = self._container.parsers.get(ReviewerType.CODERABBIT)
+
         # Process review body comments
         for review_data in reviews_data:
             # Skip reviews with empty bodies
@@ -580,9 +591,22 @@ class PRAnalyzer:
             if not body or not body.strip():
                 continue
 
+            author = review_data.get("user", {}).get("login", "")
+            review_id = str(review_data.get("id", ""))
+
+            # Extract "Outside diff range" comments from CodeRabbit reviews
+            if isinstance(coderabbit_parser, CodeRabbitParser) and coderabbit_parser.can_parse(
+                author, body
+            ):
+                review_url = review_data.get("html_url")
+                outside_comments = coderabbit_parser.parse_outside_diff_comments(
+                    body, review_id, author, review_url
+                )
+                outside_diff_comments.extend(outside_comments)
+
             # Create a comment-like dict from review
             review_comment = {
-                "id": f"review_{review_data.get('id', '')}",
+                "id": f"review_{review_id}",
                 "user": review_data.get("user", {}),
                 "body": body,
                 "created_at": review_data.get("submitted_at", ""),
@@ -594,7 +618,7 @@ class PRAnalyzer:
             # Cache stable (NON_ACTIONABLE) review comments
             self._cache_stable_comment(owner, repo, review_comment, comment.classification)
 
-        return all_comments
+        return all_comments, outside_diff_comments
 
     def _classify_comment(
         self,
