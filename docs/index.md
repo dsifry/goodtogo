@@ -63,10 +63,10 @@ Not all review comments are created equal. Good To Go classifies each comment as
 - **AMBIGUOUS** - Needs human judgment (suggestions, questions)
 
 Built-in parsers understand the patterns of popular automated reviewers:
-- **CodeRabbit** - Severity indicators (Critical/Major/Minor/Trivial)
-- **Greptile** - Code analysis findings
-- **Claude** - Blocking markers and approval patterns
-- **Cursor/Bugbot** - Bug severity levels
+- **CodeRabbit** - Severity indicators (Critical/Major/Minor/Trivial), nitpicks, addressed markers
+- **Greptile** - Severity markers, PR summary detection, actionable counts
+- **Claude Code** - Blocking markers, approval patterns, task completion summaries
+- **Cursor** - Bug severity levels (Critical/High/Medium/Low)
 
 ### 3. Thread Resolution Tracking
 Distinguishes between truly unresolved discussions and threads that are technically "unresolved" but already addressed in subsequent commits.

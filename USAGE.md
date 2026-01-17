@@ -59,11 +59,12 @@ gtg <pr_number> --repo <owner/repo> [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--repo`, `-r` | Repository in format `owner/repo` (e.g., `facebook/react`) - **required** |
+| `--repo`, `-r` | Repository in format `owner/repo` (auto-detected from git origin if omitted) |
 | `--format` | Output format: `json` (default) or `text` |
 | `--cache` | Cache backend: `sqlite` (default), `redis`, or `none` |
 | `--cache-path` | SQLite cache path (default: `.goodtogo/cache.db`) |
 | `--redis-url` | Redis URL (required if `--cache=redis`, or set `REDIS_URL` env var) |
+| `--exclude-checks`, `-x` | CI check names to exclude (can be repeated, e.g., `-x slow-tests -x optional-lint`) |
 | `--verbose`, `-v` | Show detailed output (includes ambiguous comments) |
 | `-q`, `--quiet` | Quiet mode: no output, use semantic exit codes (like `grep -q`) |
 | `--semantic-codes` | Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error) |
@@ -74,29 +75,37 @@ gtg <pr_number> --repo <owner/repo> [OPTIONS]
 #### Examples
 
 ```bash
-# Basic check (JSON output by default, AI-friendly exit codes)
+# Basic check (auto-detects repo from git origin)
+gtg 123
+
+# Explicit repo
 gtg 123 --repo myorg/myrepo
 
 # Human-readable text output
-gtg 123 --repo myorg/myrepo --format text
+gtg 123 --format text
 
 # Verbose output (shows ambiguous comments)
-gtg 123 --repo myorg/myrepo --format text --verbose
+gtg 123 --format text --verbose
 
 # Quiet mode for shell scripts (semantic exit codes, no output)
-gtg 123 --repo myorg/myrepo -q
+gtg 123 -q
 
 # Semantic exit codes with output
-gtg 123 --repo myorg/myrepo --semantic-codes
+gtg 123 --semantic-codes
+
+# Exclude specific CI checks
+gtg 123 --exclude-checks slow-tests --exclude-checks optional-lint
+# Or short form
+gtg 123 -x slow-tests -x optional-lint
 
 # Disable caching
-gtg 123 --repo myorg/myrepo --cache none
+gtg 123 --cache none
 
 # Use Redis cache
-gtg 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
+gtg 123 --cache redis --redis-url redis://localhost:6379
 
 # Force rescan, ignoring persisted state
-gtg 123 --repo myorg/myrepo --refresh
+gtg 123 --refresh
 ```
 
 ## Exit Codes
@@ -324,15 +333,19 @@ Good To Go recognizes these automated reviewers:
 
 ### Claude
 
-- Author: `claude[bot]`, `claude-code[bot]`, or signature
-- Detects blocking patterns: "❌ Blocking", "must fix before merge", "request changes"
-- Detects approval patterns: "LGTM", "looks good", "ready to merge", "APPROVE"
+- Author: `claude[bot]`, `claude-code[bot]`, `anthropic-claude[bot]`
+- Body signature: Contains "Generated with Claude Code" or "Claude Code"
+- Detects blocking patterns: "❌ Blocking", "🔴 Critical", "must fix before merge", "request changes"
+- Detects approval patterns: "LGTM", "looks good", "ready to merge", "APPROVE", "✅ Overall"
 - Detects suggestions: "consider", "suggestion", "might"
+- Task completion summaries are marked as NON_ACTIONABLE
 
 ### Cursor/Bugbot
 
-- Author: `cursor[bot]`, `bugbot[bot]`
+- Author: `cursor[bot]`, `cursor-bot`
+- Body signature: Contains "cursor.com"
 - Detects: Critical/High/Medium/Low severity
+- PR-level summary comments are marked as NON_ACTIONABLE
 
 ### Generic (Fallback)
 
@@ -344,9 +357,14 @@ Good To Go recognizes these automated reviewers:
 
 Good To Go caches API responses to reduce GitHub API calls:
 
-- Cache location: `~/.goodtogo/cache.db`
-- Default TTL: 5 minutes
-- Use `--no-cache` to bypass
+- Cache location: `.goodtogo/cache.db` (project-local)
+- TTLs vary by data type:
+  - PR metadata: 5 minutes
+  - CI status (pending): 5 minutes
+  - CI status (complete): 24 hours
+  - Comments (NON_ACTIONABLE): 24 hours
+  - Resolved threads: 24 hours
+- Use `--cache none` to bypass caching
 
 ### Cache Security
 

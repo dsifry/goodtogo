@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3] - 2026-01-17
+
+### Documentation
+
+- docs: Fix USAGE.md to show --repo as optional (auto-detects from git origin)
+- docs: Add missing --exclude-checks option to CLI reference
+- docs: Fix cache location from ~/.goodtogo to .goodtogo (project-local)
+- docs: Fix cache bypass flag from --no-cache to --cache none
+- docs: Update parser descriptions for Claude, Cursor, Greptile accuracy
+- docs: Update CONTRIBUTING.md parser example to use Template Method pattern
+- docs: Add agent_state.py and time_provider.py to architecture diagram
+
 ## [0.7.2] - 2026-01-17
 
 ### Documentation

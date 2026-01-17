@@ -106,8 +106,10 @@ src/goodtogo/
 ├── adapters/            # External integrations (implements ports)
 │   ├── github.py        # GitHub API adapter
 │   ├── cache_sqlite.py  # SQLite cache adapter
-│   └── cache_memory.py  # In-memory cache (for testing)
-├── parsers/             # Comment parsers (strategy pattern)
+│   ├── cache_memory.py  # In-memory cache (for testing)
+│   ├── agent_state.py   # State persistence for dismissals
+│   └── time_provider.py # Time abstraction (for testing)
+├── parsers/             # Comment parsers (Template Method pattern)
 │   ├── coderabbit.py    # CodeRabbit parser
 │   ├── greptile.py      # Greptile parser
 │   ├── claude.py        # Claude Code parser
@@ -139,14 +141,32 @@ from goodtogo.core.models import CommentClassification, Priority, ReviewerType
 class NewReviewerParser(ReviewerParser):
     @property
     def reviewer_type(self) -> ReviewerType:
-        return ReviewerType.UNKNOWN  # Or add new enum value
+        return ReviewerType.UNKNOWN  # Or add new enum value in models.py
 
     def can_parse(self, author: str, body: str) -> bool:
-        return author == "newreviewer[bot]"
+        """Check if this parser can handle the comment."""
+        return author == "newreviewer[bot]" or "newreviewer.com" in body
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic.
+
+        Note: Use _parse_impl, not parse(). The base class parse() method
+        handles common logic (resolved/outdated threads) via Template Method,
+        then delegates to _parse_impl() for parser-specific classification.
+
+        Returns:
+            Tuple of (classification, priority, requires_investigation)
+            If classification is AMBIGUOUS, requires_investigation MUST be True
+        """
         body = comment.get("body", "")
-        # Classification logic here
+
+        # Example classification logic
+        if "critical" in body.lower():
+            return (CommentClassification.ACTIONABLE, Priority.CRITICAL, False)
+        if "lgtm" in body.lower():
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
+        # Default to ambiguous (requires investigation must be True)
         return (CommentClassification.AMBIGUOUS, Priority.UNKNOWN, True)
 ```
 
@@ -160,9 +180,9 @@ parsers = [
     CodeRabbitParser(),
     GreptileParser(),
     ClaudeCodeParser(),
-    CursorParser(),
+    CursorBugbotParser(),
     NewReviewerParser(),  # Add here
-    GenericParser(),  # Keep generic last
+    GenericParser(),  # Keep generic last (fallback)
 ]
 ```
 
