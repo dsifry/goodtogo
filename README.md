@@ -161,13 +161,15 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
     "strict": true,
     "contexts": ["Tests & Quality", "gtg-check"]
   },
-  "enforce_admins": false,
+  "enforce_admins": true,
   "required_pull_request_reviews": null,
   "restrictions": null,
-  "allow_force_pushes": true
+  "allow_force_pushes": false
 }
 EOF
 ```
+
+> **Note**: To allow admin bypass, set `enforce_admins: false` and `allow_force_pushes: true`.
 
 See [USAGE.md](USAGE.md#github-actions-integration) for the full GitHub Actions workflow setup.
 

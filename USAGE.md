@@ -524,13 +524,17 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
     "strict": true,
     "contexts": ["Tests & Quality", "gtg-check"]
   },
-  "enforce_admins": false,
+  "enforce_admins": true,
   "required_pull_request_reviews": null,
   "restrictions": null,
-  "allow_force_pushes": true
+  "allow_force_pushes": false
 }
 EOF
 ```
+
+> **Note**: The defaults above (`enforce_admins: true`, `allow_force_pushes: false`) provide
+> maximum protection. To allow administrators to bypass checks or force push, set
+> `enforce_admins: false` and/or `allow_force_pushes: true`.
 
 ### Configuration Options
 
@@ -538,8 +542,8 @@ EOF
 |---------|-------|-------------|
 | `required_status_checks.strict` | `true` | Require branches to be up to date before merging |
 | `required_status_checks.contexts` | `["gtg-check"]` | Status checks that must pass |
-| `enforce_admins` | `false` | Allow admins to bypass protection |
-| `allow_force_pushes` | `true` | Allow force pushes (admins only when enforce_admins is false) |
+| `enforce_admins` | `true` | Enforce rules for admins too (set `false` to allow bypass) |
+| `allow_force_pushes` | `false` | Block force pushes (set `true` to allow for admins) |
 
 ### Using GitHub Web UI
 
