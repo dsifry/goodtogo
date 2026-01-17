@@ -65,12 +65,14 @@ gtg <pr_number> --repo <owner/repo> [OPTIONS]
 | `--cache-path` | SQLite cache path (default: `.goodtogo/cache.db`) |
 | `--redis-url` | Redis URL (required if `--cache=redis`, or set `REDIS_URL` env var) |
 | `--verbose`, `-v` | Show detailed output (includes ambiguous comments) |
+| `-q`, `--quiet` | Quiet mode: no output, use semantic exit codes (like `grep -q`) |
+| `--semantic-codes` | Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error) |
 | `--version` | Show version number |
 
 #### Examples
 
 ```bash
-# Basic check (JSON output by default)
+# Basic check (JSON output by default, AI-friendly exit codes)
 gtg 123 --repo myorg/myrepo
 
 # Human-readable text output
@@ -78,6 +80,12 @@ gtg 123 --repo myorg/myrepo --format text
 
 # Verbose output (shows ambiguous comments)
 gtg 123 --repo myorg/myrepo --format text --verbose
+
+# Quiet mode for shell scripts (semantic exit codes, no output)
+gtg 123 --repo myorg/myrepo -q
+
+# Semantic exit codes with output
+gtg 123 --repo myorg/myrepo --semantic-codes
 
 # Disable caching
 gtg 123 --repo myorg/myrepo --cache none
@@ -88,20 +96,38 @@ gtg 123 --repo myorg/myrepo --cache redis --redis-url redis://localhost:6379
 
 ## Exit Codes
 
-Good To Go uses exit codes for deterministic status reporting:
+Good To Go supports two exit code modes:
 
-| Code | Status | Description | Action |
-|------|--------|-------------|--------|
-| 0 | `READY` | PR is ready to merge | Proceed with merge |
-| 1 | `ACTION_REQUIRED` | Actionable comments exist | Address the comments |
-| 2 | `UNRESOLVED` | Unresolved review threads | Resolve threads |
-| 3 | `CI_FAILING` | CI checks failing/pending | Wait for CI or fix failures |
-| 4 | `ERROR` | Error fetching data | Check token/connectivity |
+### Default Mode (AI-friendly)
+
+By default, gtg returns 0 for any analyzable state. This is optimized for AI agents that interpret non-zero exit codes as errors:
+
+| Code | Description |
+|------|-------------|
+| 0 | Any analyzable state (READY, ACTION_REQUIRED, UNRESOLVED, CI_FAILING) |
+| 4 | Error fetching data |
+
+Parse the JSON `status` field to determine the actual PR state.
+
+### Semantic Mode (`-q` or `--semantic-codes`)
+
+For shell scripts that need different exit codes per status:
+
+| Code | Status | Description |
+|------|--------|-------------|
+| 0 | `READY` | PR is ready to merge |
+| 1 | `ACTION_REQUIRED` | Actionable comments exist |
+| 2 | `UNRESOLVED` | Unresolved review threads |
+| 3 | `CI_FAILING` | CI checks failing/pending |
+| 4 | `ERROR` | Error fetching data |
+
+Use `-q` for quiet mode (semantic codes, no output) or `--semantic-codes` for semantic codes with output.
 
 ### Using Exit Codes in Scripts
 
 ```bash
-gtg 123 --repo owner/repo
+# For shell scripts that need semantic exit codes, use -q (quiet mode)
+gtg 123 --repo owner/repo -q
 case $? in
   0) echo "Ready to merge!" ;;
   1) echo "Comments need attention" ;;
@@ -109,6 +135,9 @@ case $? in
   3) echo "CI not passing" ;;
   4) echo "Error occurred" ;;
 esac
+
+# Or use --semantic-codes if you also want the output
+gtg 123 --repo owner/repo --semantic-codes --format text
 ```
 
 ## Text Output Format
