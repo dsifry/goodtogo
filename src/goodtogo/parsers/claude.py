@@ -139,8 +139,8 @@ class ClaudeCodeParser(ReviewerParser):
 
         return False
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse comment and return classification.
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic for Claude Code comments.
 
         Classifies Claude Code comments based on keyword patterns with the
         following precedence:
@@ -154,6 +154,8 @@ class ClaudeCodeParser(ReviewerParser):
         ACTIONABLE even if they appear in task completion summaries, and that
         reviews with explicit approval markers are classified as NON_ACTIONABLE
         even if they contain words like "bug" or "error" in a positive context.
+
+        Resolved/outdated thread checks are handled by the base class.
 
         Args:
             comment: Dictionary containing comment data with 'body' key.

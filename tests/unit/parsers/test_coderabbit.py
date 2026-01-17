@@ -916,3 +916,99 @@ Also, logging the error would help with debugging.
         assert len(results) == 1
         assert results[0].file_path == "src/utils.py"
         assert results[0].body == "This has content."
+
+
+class TestCodeRabbitParserThreadResolution:
+    """Tests for thread resolution handling (base class template method)."""
+
+    @pytest.fixture
+    def parser(self) -> CodeRabbitParser:
+        """Create a CodeRabbitParser instance."""
+        return CodeRabbitParser()
+
+    def test_resolved_thread_overrides_critical_severity(self, parser: CodeRabbitParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with Critical severity."""
+        comment = {
+            "body": (
+                "_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_\n\n"
+                "Security vulnerability!"
+            ),
+            "is_resolved": True,
+            "path": "src/auth.py",
+            "line": 42,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_major_severity(self, parser: CodeRabbitParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with Major severity."""
+        comment = {
+            "body": "_\u26a0\ufe0f Potential issue_ | _\U0001f7e0 Major_\n\nMissing validation.",
+            "is_resolved": True,
+            "path": "src/api.py",
+            "line": 100,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_minor_severity(self, parser: CodeRabbitParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with Minor severity."""
+        comment = {
+            "body": "_\u26a0\ufe0f Potential issue_ | _\U0001f7e1 Minor_\n\nConsider refactoring.",
+            "is_resolved": True,
+            "path": "src/utils.py",
+            "line": 50,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_outdated_thread_overrides_severity(self, parser: CodeRabbitParser) -> None:
+        """Test that outdated threads return NON_ACTIONABLE regardless of severity."""
+        comment = {
+            "body": "_\u26a0\ufe0f Potential issue_ | _\U0001f534 Critical_\n\nFix this!",
+            "is_outdated": True,
+            "path": "src/critical.py",
+            "line": 10,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_unresolved_thread_respects_severity(self, parser: CodeRabbitParser) -> None:
+        """Test that unresolved threads still respect severity classification."""
+        comment = {
+            "body": "_\u26a0\ufe0f Potential issue_ | _\U0001f7e0 Major_\n\nNeed to fix.",
+            "is_resolved": False,
+            "is_outdated": False,
+            "path": "src/logic.py",
+            "line": 25,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MAJOR
+        assert requires_investigation is False
+
+    def test_missing_resolution_flags_defaults_to_parsing(self, parser: CodeRabbitParser) -> None:
+        """Test that missing is_resolved/is_outdated defaults to normal parsing."""
+        comment = {
+            "body": "_\u26a0\ufe0f Potential issue_ | _\U0001f7e1 Minor_\n\nShould improve.",
+            "path": "src/minor.py",
+            "line": 1,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MINOR
+        assert requires_investigation is False

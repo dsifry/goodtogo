@@ -543,3 +543,96 @@ inline comment addresses the actual issue."""
             "line": None,
         }
         assert parser._is_pr_summary_comment(comment) is True
+
+
+class TestGreptileParserThreadResolution:
+    """Tests for thread resolution handling (base class template method)."""
+
+    @pytest.fixture
+    def parser(self) -> GreptileParser:
+        """Create a GreptileParser instance."""
+        return GreptileParser()
+
+    def test_resolved_thread_overrides_logic_severity(self, parser: GreptileParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with **logic:** marker."""
+        comment = {
+            "body": "**logic:** The validation logic is incorrect.",
+            "is_resolved": True,
+            "path": "src/app.py",
+            "line": 42,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_security_severity(self, parser: GreptileParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with **security:** marker."""
+        comment = {
+            "body": "**security:** Potential SQL injection vulnerability.",
+            "is_resolved": True,
+            "path": "src/db.py",
+            "line": 100,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_bug_severity(self, parser: GreptileParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with **bug:** marker."""
+        comment = {
+            "body": "**bug:** This will cause a null pointer exception.",
+            "is_resolved": True,
+            "path": "src/utils.py",
+            "line": 50,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_outdated_thread_overrides_severity(self, parser: GreptileParser) -> None:
+        """Test that outdated threads return NON_ACTIONABLE regardless of severity."""
+        comment = {
+            "body": "**security:** Critical vulnerability!",
+            "is_outdated": True,
+            "path": "src/auth.py",
+            "line": 10,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_unresolved_thread_respects_severity(self, parser: GreptileParser) -> None:
+        """Test that unresolved threads still respect severity classification."""
+        comment = {
+            "body": "**logic:** The condition should be inverted.",
+            "is_resolved": False,
+            "is_outdated": False,
+            "path": "src/logic.py",
+            "line": 25,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MINOR
+        assert requires_investigation is False
+
+    def test_missing_resolution_flags_defaults_to_parsing(self, parser: GreptileParser) -> None:
+        """Test that missing is_resolved/is_outdated defaults to normal parsing."""
+        comment = {
+            "body": "**bug:** This is broken.",
+            "path": "src/broken.py",
+            "line": 1,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MAJOR
+        assert requires_investigation is False

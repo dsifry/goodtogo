@@ -110,8 +110,8 @@ class GreptileParser(ReviewerParser):
 
         return False
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse comment and return classification.
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic for Greptile comments.
 
         Classification logic (per design spec):
         1. PR-level summary comments -> NON_ACTIONABLE
@@ -120,6 +120,8 @@ class GreptileParser(ReviewerParser):
         4. Review summary only -> NON_ACTIONABLE
         5. Severity markers (**logic:**, **bug:**) -> ACTIONABLE with priority
         6. Other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+
+        Resolved/outdated thread checks are handled by the base class.
 
         Args:
             comment: Dictionary containing comment data with at least:

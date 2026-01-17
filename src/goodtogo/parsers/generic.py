@@ -106,26 +106,22 @@ class GenericParser(ReviewerParser):
         """
         return True
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse comment and return classification.
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic for generic/human comments.
 
         Classification logic:
-        1. Resolved threads -> NON_ACTIONABLE
-        2. Outdated threads -> NON_ACTIONABLE
-        3. Reply confirmation patterns -> NON_ACTIONABLE
-        4. Approval patterns -> NON_ACTIONABLE
-        5. All other -> AMBIGUOUS with requires_investigation=True
+        1. Reply confirmation patterns -> NON_ACTIONABLE
+        2. Approval patterns -> NON_ACTIONABLE
+        3. All other -> AMBIGUOUS with requires_investigation=True
 
         Note: This parser intentionally does NOT try to interpret comment
         content for actionability. That would be unreliable for human comments.
-        Instead, it relies on metadata (resolved/outdated status) and simple
-        patterns that indicate the comment has been addressed.
+        Instead, it relies on simple patterns that indicate the comment has
+        been addressed. Resolved/outdated checks are handled by the base class.
 
         Args:
             comment: Dictionary containing comment data with:
                 - 'body': Comment text content (optional)
-                - 'is_resolved': Boolean indicating if thread is resolved
-                - 'is_outdated': Boolean indicating if comment is outdated
 
         Returns:
             Tuple of (classification, priority, requires_investigation):
@@ -133,14 +129,6 @@ class GenericParser(ReviewerParser):
             - priority: Priority.UNKNOWN (generic parser doesn't assess priority)
             - requires_investigation: True for AMBIGUOUS, False otherwise
         """
-        # Check if thread is resolved
-        if comment.get("is_resolved", False):
-            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
-
-        # Check if thread is outdated
-        if comment.get("is_outdated", False):
-            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
-
         body = comment.get("body", "")
 
         # Check for reply confirmation patterns (acknowledging fixes)

@@ -596,3 +596,82 @@ This PR fixes the bug in authentication. There was an error handling issue.
 
         assert classification == CommentClassification.NON_ACTIONABLE
         assert requires_investigation is False
+
+
+class TestClaudeCodeParserThreadResolution:
+    """Tests for thread resolution handling (base class template method)."""
+
+    @pytest.fixture
+    def parser(self) -> ClaudeCodeParser:
+        """Create a ClaudeCodeParser instance."""
+        return ClaudeCodeParser()
+
+    def test_resolved_thread_overrides_blocking_pattern(self, parser: ClaudeCodeParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with blocking pattern."""
+        comment = {
+            "body": "❌ Blocking: This must be fixed before merge!",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_must_fix_pattern(self, parser: ClaudeCodeParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with 'must fix' pattern."""
+        comment = {
+            "body": "This must fix before merge - security issue.",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_critical_emoji(self, parser: ClaudeCodeParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with 🔴 Critical pattern."""
+        comment = {
+            "body": "🔴 Critical: SQL injection vulnerability detected.",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_outdated_thread_overrides_blocking(self, parser: ClaudeCodeParser) -> None:
+        """Test that outdated threads return NON_ACTIONABLE regardless of blocking markers."""
+        comment = {
+            "body": "❌ Blocking: Critical security issue!",
+            "is_outdated": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_unresolved_thread_respects_blocking(self, parser: ClaudeCodeParser) -> None:
+        """Test that unresolved threads still respect blocking classification."""
+        comment = {
+            "body": "❌ Blocking: This needs immediate attention.",
+            "is_resolved": False,
+            "is_outdated": False,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False
+
+    def test_missing_resolution_flags_defaults_to_parsing(self, parser: ClaudeCodeParser) -> None:
+        """Test that missing is_resolved/is_outdated defaults to normal parsing."""
+        comment = {"body": "🔴 Critical: Fix this vulnerability."}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.CRITICAL
+        assert requires_investigation is False

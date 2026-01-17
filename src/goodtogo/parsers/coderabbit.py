@@ -177,8 +177,8 @@ class CodeRabbitParser(ReviewerParser):
 
         return False
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse CodeRabbit comment and return classification.
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic for CodeRabbit comments.
 
         Analyzes the comment body to determine classification and priority
         based on CodeRabbit's severity indicators.
@@ -196,6 +196,8 @@ class CodeRabbitParser(ReviewerParser):
             10. Summary/walkthrough sections -> NON_ACTIONABLE
             11. Tip/info boxes -> NON_ACTIONABLE
             12. All other -> AMBIGUOUS, UNKNOWN, requires_investigation=True
+
+        Resolved/outdated thread checks are handled by the base class.
 
         Args:
             comment: Dictionary containing comment data with 'body' key,

@@ -106,12 +106,14 @@ class CursorBugbotParser(ReviewerParser):
 
         return False
 
-    def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse comment and return classification.
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic for Cursor/Bugbot comments.
 
         Analyzes the comment body for severity indicators to determine
         classification and priority. Comments without a recognized
         severity pattern are classified as AMBIGUOUS.
+
+        Resolved/outdated thread checks are handled by the base class.
 
         Args:
             comment: Dictionary containing comment data with at least:

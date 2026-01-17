@@ -349,6 +349,10 @@ class ReviewerParser(ABC):
 
     Parsers are registered in the container and selected based on
     can_parse() returning True for a given comment.
+
+    This class uses the Template Method pattern: the base class parse()
+    method handles common checks (resolved/outdated threads), then
+    delegates to _parse_impl() for parser-specific classification logic.
     """
 
     @property
@@ -383,18 +387,22 @@ class ReviewerParser(ABC):
         """
         pass
 
-    @abstractmethod
     def parse(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
-        """Parse comment and return classification.
+        """Parse comment and return classification (Template Method).
 
-        Analyzes the comment content and determines its classification,
-        priority, and whether it requires human investigation.
+        This method handles common checks that apply to ALL parsers:
+        1. Resolved threads -> NON_ACTIONABLE (issue addressed on GitHub)
+        2. Outdated threads -> NON_ACTIONABLE (code has changed)
+
+        Then delegates to _parse_impl() for parser-specific logic.
 
         Args:
             comment: Dictionary containing comment data with keys:
                 - 'body': Comment text content
                 - 'user': Dictionary with 'login' key
                 - 'id': Comment identifier
+                - 'is_resolved': Boolean, True if thread is resolved
+                - 'is_outdated': Boolean, True if code has changed
                 - Additional keys depending on comment type
 
         Returns:
@@ -406,6 +414,35 @@ class ReviewerParser(ABC):
             - requires_investigation: Boolean, True if the comment
               could not be definitively classified and needs human
               review (always True for AMBIGUOUS classification)
+        """
+        # Import here to avoid circular imports
+        from goodtogo.core.models import CommentClassification, Priority
+
+        # Check if thread is resolved - resolved threads are non-actionable
+        # regardless of severity markers in the original comment text
+        if comment.get("is_resolved", False):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
+        # Check if thread is outdated - code has changed since comment
+        if comment.get("is_outdated", False):
+            return (CommentClassification.NON_ACTIONABLE, Priority.UNKNOWN, False)
+
+        # Delegate to parser-specific implementation
+        return self._parse_impl(comment)
+
+    @abstractmethod
+    def _parse_impl(self, comment: dict) -> tuple[CommentClassification, Priority, bool]:
+        """Parser-specific classification logic.
+
+        Subclasses implement this method to provide their specific
+        classification rules based on comment content patterns.
+
+        Args:
+            comment: Dictionary containing comment data (already checked
+                for resolved/outdated status by parse()).
+
+        Returns:
+            Tuple of (classification, priority, requires_investigation).
 
         Note:
             If classification is AMBIGUOUS, requires_investigation MUST

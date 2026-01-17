@@ -335,3 +335,82 @@ class TestCursorBugbotParserEdgeCases:
 
         assert classification == CommentClassification.AMBIGUOUS
         assert requires_investigation is True
+
+
+class TestCursorBugbotParserThreadResolution:
+    """Tests for thread resolution handling (base class template method)."""
+
+    @pytest.fixture
+    def parser(self) -> CursorBugbotParser:
+        """Create a CursorBugbotParser instance."""
+        return CursorBugbotParser()
+
+    def test_resolved_thread_overrides_critical_severity(self, parser: CursorBugbotParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with Critical Severity."""
+        comment = {
+            "body": "Critical Severity: Security vulnerability!",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_high_severity(self, parser: CursorBugbotParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with High Severity."""
+        comment = {
+            "body": "High Severity: Must fix before merge.",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_resolved_thread_overrides_medium_severity(self, parser: CursorBugbotParser) -> None:
+        """Test that resolved threads return NON_ACTIONABLE even with Medium Severity."""
+        comment = {
+            "body": "Medium Severity: Should fix this issue.",
+            "is_resolved": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_outdated_thread_overrides_severity(self, parser: CursorBugbotParser) -> None:
+        """Test that outdated threads return NON_ACTIONABLE regardless of severity."""
+        comment = {
+            "body": "Critical Severity: Fix immediately!",
+            "is_outdated": True,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.NON_ACTIONABLE
+        assert priority == Priority.UNKNOWN
+        assert requires_investigation is False
+
+    def test_unresolved_thread_respects_severity(self, parser: CursorBugbotParser) -> None:
+        """Test that unresolved threads still respect severity classification."""
+        comment = {
+            "body": "High Severity: Must fix this.",
+            "is_resolved": False,
+            "is_outdated": False,
+        }
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MAJOR
+        assert requires_investigation is False
+
+    def test_missing_resolution_flags_defaults_to_parsing(self, parser: CursorBugbotParser) -> None:
+        """Test that missing is_resolved/is_outdated defaults to normal parsing."""
+        comment = {"body": "Medium Severity: Should fix."}
+        classification, priority, requires_investigation = parser.parse(comment)
+
+        assert classification == CommentClassification.ACTIONABLE
+        assert priority == Priority.MINOR
+        assert requires_investigation is False

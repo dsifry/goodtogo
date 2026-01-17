@@ -1902,7 +1902,9 @@ class TestActionItemsOtherPriority:
             def can_parse(self, author: str, body: str) -> bool:
                 return True
 
-            def parse(self, comment_data: dict) -> tuple[CommentClassification, Priority, bool]:
+            def _parse_impl(
+                self, comment_data: dict
+            ) -> tuple[CommentClassification, Priority, bool]:
                 return (CommentClassification.ACTIONABLE, Priority.TRIVIAL, False)
 
         # Create container with the trivial parser for all types
@@ -1993,7 +1995,9 @@ class TestActionItemsOtherPriority:
             def can_parse(self, author: str, body: str) -> bool:
                 return True
 
-            def parse(self, comment_data: dict) -> tuple[CommentClassification, Priority, bool]:
+            def _parse_impl(
+                self, comment_data: dict
+            ) -> tuple[CommentClassification, Priority, bool]:
                 return (CommentClassification.ACTIONABLE, Priority.UNKNOWN, False)
 
         parser = UnknownPriorityParser()
