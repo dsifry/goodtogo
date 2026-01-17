@@ -101,6 +101,16 @@ class MockGitHubAdapter(GitHubPort):
             "Replace with a mock in your test."
         )
 
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Fetch commit details.
+
+        Raises:
+            NotImplementedError: Always raised - override in tests.
+        """
+        raise NotImplementedError(
+            "MockGitHubAdapter.get_commit() not implemented. " "Replace with a mock in your test."
+        )
+
     def get_ci_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
         """Fetch CI/CD check status.
 

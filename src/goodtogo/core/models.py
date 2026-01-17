@@ -97,6 +97,35 @@ class ReviewerType(str, Enum):
     """Unknown reviewer type."""
 
 
+class Review(BaseModel):
+    """PR review with timestamp information.
+
+    Represents a review submitted on a PR, including the submission
+    timestamp for detecting new reviews after the latest commit.
+    """
+
+    id: str
+    """Unique identifier for the review."""
+
+    author: str
+    """Username of the reviewer."""
+
+    submitted_at: str
+    """ISO 8601 timestamp when the review was submitted."""
+
+    state: str
+    """Review state: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, or PENDING."""
+
+    body: Optional[str] = None
+    """Review body text (may be empty for approvals)."""
+
+    has_actionable_comments: bool = False
+    """Whether this review contains actionable inline comments."""
+
+    url: Optional[str] = None
+    """URL to view this review on GitHub."""
+
+
 class Comment(BaseModel):
     """Individual comment with classification.
 
@@ -341,3 +370,9 @@ class PRAnalysisResult(BaseModel):
 
     cache_stats: Optional[CacheStats]
     """Cache performance metrics, if caching is enabled."""
+
+    reviews: list[Review] = []
+    """All reviews on the PR with submission timestamps."""
+
+    has_reviews_after_latest_commit: bool = False
+    """True if any reviews were submitted after the latest commit."""

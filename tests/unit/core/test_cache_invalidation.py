@@ -85,6 +85,14 @@ class ConfigurableGitHubAdapter(GitHubPort):
         self._reviews: list[dict[str, Any]] = []
         self._threads: list[dict[str, Any]] = []
         self._ci_status: dict[str, Any] = {}
+        # Default commit data to avoid test failures
+        self._commit_data: dict[str, Any] = {
+            "sha": "abc123def456",
+            "commit": {
+                "committer": {"date": "2024-01-15T10:00:00Z"},
+                "author": {"date": "2024-01-15T09:00:00Z"},
+            },
+        }
 
     def set_pr_data(self, data: dict[str, Any]) -> None:
         """Set the PR data to return."""
@@ -111,6 +119,10 @@ class ConfigurableGitHubAdapter(GitHubPort):
         """Set the CI status to return."""
         self._ci_status = status
 
+    def set_commit_data(self, data: dict[str, Any]) -> None:
+        """Set the commit data to return."""
+        self._commit_data = data
+
     def get_pr(self, owner: str, repo: str, pr_number: int) -> dict[str, Any]:
         """Return configured PR data."""
         return self._pr_data
@@ -135,6 +147,10 @@ class ConfigurableGitHubAdapter(GitHubPort):
     def get_ci_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
         """Return configured CI status."""
         return self._ci_status
+
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Return configured commit data."""
+        return self._commit_data
 
 
 @pytest.fixture
@@ -216,6 +232,26 @@ def make_ci_status():
             "state": state,
             "statuses": [],
             "check_runs": [],
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_commit_data():
+    """Factory for creating commit data dictionaries."""
+
+    def _make(
+        sha: str = "abc123def456",
+        committer_date: str = "2024-01-15T10:00:00Z",
+        author_date: str = "2024-01-15T09:00:00Z",
+    ) -> dict[str, Any]:
+        return {
+            "sha": sha,
+            "commit": {
+                "committer": {"date": committer_date},
+                "author": {"date": author_date},
+            },
         }
 
     return _make
@@ -706,6 +742,7 @@ class TrackingGitHubAdapter(GitHubPort):
         self.get_reviews_call_count = 0
         self.get_threads_call_count = 0
         self.get_ci_status_call_count = 0
+        self.get_commit_call_count = 0
 
     def set_pr_data(self, data: dict[str, Any]) -> None:
         """Delegate to inner adapter."""
@@ -730,6 +767,10 @@ class TrackingGitHubAdapter(GitHubPort):
     def set_ci_status(self, status: dict[str, Any]) -> None:
         """Delegate to inner adapter."""
         self._inner.set_ci_status(status)
+
+    def set_commit_data(self, data: dict[str, Any]) -> None:
+        """Delegate to inner adapter."""
+        self._inner.set_commit_data(data)
 
     def get_pr(self, owner: str, repo: str, pr_number: int) -> dict[str, Any]:
         """Track call and delegate."""
@@ -756,6 +797,11 @@ class TrackingGitHubAdapter(GitHubPort):
         self.get_ci_status_call_count += 1
         return self._inner.get_ci_status(owner, repo, ref)
 
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Track call and delegate."""
+        self.get_commit_call_count += 1
+        return self._inner.get_commit(owner, repo, ref)
+
     def reset_counts(self) -> None:
         """Reset all call counts to zero."""
         self.get_pr_call_count = 0
@@ -763,6 +809,7 @@ class TrackingGitHubAdapter(GitHubPort):
         self.get_reviews_call_count = 0
         self.get_threads_call_count = 0
         self.get_ci_status_call_count = 0
+        self.get_commit_call_count = 0
 
 
 class TestCachePreservedWhenStatusIsReady:
@@ -1475,6 +1522,9 @@ class TestCacheEdgeCases:
         github.set_reviews([])
         github.set_threads([])
         github.set_ci_status(make_ci_status())
+        github.set_commit_data(
+            {"sha": "abc123def456", "commit": {"committer": {"date": "2024-01-15T10:00:00Z"}}}
+        )
 
         container = Container.create_for_testing(
             github=github,
@@ -1512,6 +1562,9 @@ class TestCacheEdgeCases:
             [{"id": "thread-123", "is_resolved": True, "is_outdated": False, "comments": []}]
         )
         github.set_ci_status(make_ci_status())
+        github.set_commit_data(
+            {"sha": "abc123def456", "commit": {"committer": {"date": "2024-01-15T10:00:00Z"}}}
+        )
 
         container = Container.create_for_testing(
             github=github,

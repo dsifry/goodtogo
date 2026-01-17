@@ -383,6 +383,33 @@ class GitHubAdapter(GitHubPort):
 
         return threads
 
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
+        """Fetch commit details including timestamp.
+
+        Retrieves detailed information about a specific commit, including
+        the commit timestamp which is needed to compare against review
+        submission times.
+
+        Args:
+            owner: Repository owner (organization or user name).
+            repo: Repository name.
+            ref: Git reference (commit SHA, branch name, or tag).
+
+        Returns:
+            Dictionary containing:
+            - 'sha': Commit SHA
+            - 'commit': Dictionary with 'author' and 'committer' info
+              including 'date' timestamp
+            - 'author': GitHub user who authored the commit
+            - 'committer': GitHub user who committed
+
+        Raises:
+            GitHubRateLimitError: If rate limit is exceeded.
+            GitHubAPIError: If the request fails.
+        """
+        response = self._client.get(f"/repos/{owner}/{repo}/commits/{ref}")
+        return self._handle_response(response)
+
     def get_ci_status(self, owner: str, repo: str, ref: str) -> dict[str, Any]:
         """Fetch CI/CD check status for a commit.
 

@@ -143,6 +143,32 @@ class GitHubPort(ABC):
         pass
 
     @abstractmethod
+    def get_commit(self, owner: str, repo: str, ref: str) -> dict:
+        """Fetch commit details including timestamp.
+
+        Retrieves detailed information about a specific commit, including
+        the commit timestamp which is needed to compare against review
+        submission times.
+
+        Args:
+            owner: Repository owner (organization or user name).
+            repo: Repository name.
+            ref: Git reference (commit SHA, branch name, or tag).
+
+        Returns:
+            Dictionary containing:
+            - 'sha': Commit SHA
+            - 'commit': Dictionary with 'author' and 'committer' info
+              including 'date' timestamp
+            - 'author': GitHub user who authored the commit
+            - 'committer': GitHub user who committed
+
+        Raises:
+            Exception: If the API request fails.
+        """
+        pass
+
+    @abstractmethod
     def get_ci_status(self, owner: str, repo: str, ref: str) -> dict:
         """Fetch CI/CD check status for a commit.
 
