@@ -444,18 +444,176 @@ from goodtogo import (
 
 ## GitHub Actions Integration
 
-You can run `gtg` as a GitHub Actions check to gate PR merges.
+Good To Go integrates with GitHub Actions to automate PR readiness checks. This section covers setup from basic to advanced patterns.
 
-### Example Workflow
+### Quick Setup (AI Agent Instructions)
 
-Create `.github/workflows/pr-check.yml`:
+**For AI agents:** To set up GTG in a repository, follow these steps:
+
+1. **Create the workflow file** at `.github/workflows/gtg.yml`
+2. **Create or update a GitHub PAT** with `repo` scope (or use `GITHUB_TOKEN` for public repos)
+3. **Add the secret** `GTG_PAT` to the repository (Settings → Secrets → Actions)
+4. **Add branch protection** requiring the `Merge Ready (gtg)` check
+
+Here's the complete workflow to create:
+
+```yaml
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+  # Re-run GTG when reviews are submitted/dismissed (threads resolved)
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  pull-requests: read
+  contents: read
+  checks: read
+  statuses: read
+
+jobs:
+  # Your existing CI jobs go here (lint, test, build, etc.)
+  # Example:
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - run: npm run lint
+
+  # GTG merge readiness check - runs after CI jobs pass
+  merge-ready:
+    name: Merge Ready (gtg)
+    runs-on: ubuntu-latest
+    # List your CI jobs here so GTG runs after them
+    # needs: [lint, test, build]
+    if: |
+      always() && (
+        github.event_name == 'pull_request' ||
+        github.event_name == 'pull_request_review'
+      )
+    timeout-minutes: 5
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gtg
+        run: pip install gtg
+
+      - name: Check PR readiness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
+        run: |
+          set -o pipefail
+          echo "Checking PR #${{ github.event.pull_request.number }} readiness..."
+
+          set +e
+          gtg ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --semantic-codes \
+            --format text \
+            --verbose \
+            --exclude-checks "Merge Ready (gtg)" \
+            --exclude-checks "claude" \
+            --exclude-checks "CodeRabbit" 2>&1 | tee gtg-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          echo "::group::GTG Check Details"
+          cat gtg-output.txt
+          echo "::endgroup::"
+
+          case $EXIT_CODE in
+            0)
+              echo "::notice::PR #${{ github.event.pull_request.number }} is ready to merge"
+              ;;
+            1)
+              echo "::error::PR has actionable comments that need to be addressed"
+              exit 1
+              ;;
+            2)
+              echo "::error::PR has unresolved review threads"
+              exit 2
+              ;;
+            3)
+              echo "::error::PR has failing CI checks"
+              exit 3
+              ;;
+            4)
+              echo "::error::Error fetching PR data from GitHub API"
+              exit 4
+              ;;
+            *)
+              echo "::error::GTG check failed with unexpected exit code: $EXIT_CODE"
+              exit $EXIT_CODE
+              ;;
+          esac
+```
+
+### Understanding the Workflow
+
+#### Dual Trigger Pattern
+
+The workflow uses two triggers for optimal responsiveness:
+
+```yaml
+on:
+  pull_request:
+    branches: [main]
+  pull_request_review:
+    types: [submitted, dismissed]
+```
+
+| Trigger | When It Fires | What Runs |
+|---------|---------------|-----------|
+| `pull_request` | PR opened, updated, synchronized | Full CI + GTG |
+| `pull_request_review` | Review submitted or dismissed | GTG only (CI skipped) |
+
+This means when you resolve review threads, GTG re-runs immediately without waiting for CI to rebuild.
+
+#### Excluding Checks
+
+Always exclude GTG from its own evaluation to avoid circular dependencies:
+
+```bash
+--exclude-checks "Merge Ready (gtg)"
+```
+
+Also exclude AI reviewer checks that don't block merges:
+
+```bash
+--exclude-checks "claude" \
+--exclude-checks "CodeRabbit" \
+--exclude-checks "Cursor Bugbot"
+```
+
+#### Semantic Exit Codes
+
+The workflow uses `--semantic-codes` for different handling per status:
+
+| Exit Code | Status | Workflow Result |
+|-----------|--------|-----------------|
+| 0 | READY | ✅ Success |
+| 1 | ACTION_REQUIRED | ❌ Failure |
+| 2 | UNRESOLVED | ❌ Failure |
+| 3 | CI_FAILING | ❌ Failure |
+| 4 | ERROR | ❌ Failure |
+
+### Advanced: Separate Workflow with `workflow_run`
+
+For complex CI pipelines, run GTG in a separate workflow after CI completes:
 
 ```yaml
 name: PR Readiness Check
 
 on:
   workflow_run:
-    workflows: ["Tests & Quality"]  # Run after your CI workflow
+    workflows: ["Tests & Quality"]  # Your CI workflow name
     types: [completed]
 
 permissions:
@@ -478,6 +636,12 @@ jobs:
           PR_NUMBER=$(gh api \
             repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} \
             --jq '.pull_requests[0].number')
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "Could not determine PR number from workflow run"
+            exit 1
+          fi
+
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v4
@@ -486,7 +650,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install gtg
         run: pip install gtg
@@ -494,10 +658,9 @@ jobs:
       - name: Run gtg check
         id: gtg
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
         run: |
           set +e
-          # Exclude gtg-check to avoid circular dependency
           gtg ${{ steps.pr.outputs.pr_number }} \
             --repo ${{ github.repository }} \
             --format json \
@@ -505,6 +668,12 @@ jobs:
             --exclude-checks gtg-check > gtg-result.json
           EXIT_CODE=$?
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Write step summary
+          STATUS=$(jq -r '.status' gtg-result.json)
+          echo "## GTG Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "**PR #${{ steps.pr.outputs.pr_number }}**: $STATUS" >> $GITHUB_STEP_SUMMARY
+
           exit $EXIT_CODE
 
       - name: Post status to PR
@@ -512,12 +681,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          case "${{ steps.gtg.outputs.exit_code }}" in
-            0) STATE="success"; DESC="Good to Go!" ;;
-            1) STATE="failure"; DESC="Action Required" ;;
-            2) STATE="failure"; DESC="Unresolved Threads" ;;
-            3) STATE="failure"; DESC="CI Failing" ;;
-            *) STATE="failure"; DESC="Error" ;;
+          EXIT_CODE="${{ steps.gtg.outputs.exit_code }}"
+
+          case $EXIT_CODE in
+            0) STATE="success"; DESC="✅ Good to Go!" ;;
+            1) STATE="failure"; DESC="⚠️ Action Required" ;;
+            2) STATE="failure"; DESC="💬 Unresolved Threads" ;;
+            3) STATE="failure"; DESC="❌ CI Failing" ;;
+            *) STATE="failure"; DESC="⚠️ Error" ;;
           esac
 
           gh api repos/${{ github.repository }}/statuses/${{ github.event.workflow_run.head_sha }} \
@@ -525,27 +696,132 @@ jobs:
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             -f description="$DESC" \
             -f context="gtg-check"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtg-results-pr-${{ steps.pr.outputs.pr_number }}
+          path: gtg-result.json
 ```
 
-### Key Points
+### Advanced: Manual Re-run Workflow
 
-- **Run after CI**: Use `workflow_run` to trigger after your tests complete
-- **Exclude self**: Use `--exclude-checks gtg-check` to avoid circular dependency
-- **Post status**: Creates a commit status that can be required for merging
+Create a workflow for quick GTG re-checks without full CI:
+
+```yaml
+name: GTG Manual Re-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to check"
+        required: true
+        type: number
+
+permissions:
+  pull-requests: read
+  contents: read
+  checks: read
+  statuses: read
+
+jobs:
+  gtg-check:
+    name: Merge Ready (gtg)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gtg
+        run: pip install gtg
+
+      - name: Check PR readiness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
+        run: |
+          gtg ${{ github.event.inputs.pr_number }} \
+            --repo ${{ github.repository }} \
+            --semantic-codes \
+            --format text \
+            --verbose \
+            --exclude-checks "Merge Ready (gtg)"
+```
+
+### Token Configuration
+
+GTG needs a GitHub token with appropriate permissions.
+
+#### Option 1: Personal Access Token (Recommended)
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
+2. Create a **Fine-grained token** with:
+   - Repository access: Select your repositories
+   - Permissions: `Pull requests: Read`, `Contents: Read`, `Checks: Read`
+3. Or create a **Classic token** with `repo` scope
+4. Add as repository secret named `GTG_PAT`
+
+#### Option 2: Default GITHUB_TOKEN
+
+For public repositories or basic checks, `GITHUB_TOKEN` works but has limitations:
+- Cannot read some check run details
+- Cannot access cross-repository data
+
+```yaml
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### Key Configuration Points
+
+| Configuration | Purpose |
+|---------------|---------|
+| `--semantic-codes` | Different exit codes per status (not just 0/non-zero) |
+| `--exclude-checks` | Prevent circular dependency and ignore non-blocking checks |
+| `--verbose` | Show ambiguous comments in output |
+| `--format text` | Human-readable for logs; use `json` for parsing |
+| `timeout-minutes: 5` | Prevent hung jobs |
+| `set -o pipefail` | Catch errors in piped commands |
 
 ## Branch Protection
 
-Make `gtg` a required check to prevent merging PRs that aren't ready.
+Make GTG a required check to prevent merging PRs that aren't ready.
 
-### Using GitHub CLI
+### Quick Setup (AI Agent Instructions)
+
+**For AI agents:** Run this command to enable branch protection with GTG:
 
 ```bash
-# Enable branch protection with gtg-check as required
 gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Lint & Format", "Tests (3.9)", "Tests (3.10)", "Tests (3.11)", "Tests (3.12)", "Type Check", "gtg-check"]
+    "contexts": ["Merge Ready (gtg)"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false
+}
+EOF
+```
+
+Replace `OWNER/REPO` with the actual repository. Add other CI job names to `contexts` as needed.
+
+### Using GitHub CLI
+
+```bash
+# Enable branch protection with all your CI checks + GTG
+gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["lint", "test", "build", "Merge Ready (gtg)"]
   },
   "enforce_admins": true,
   "required_pull_request_reviews": null,
@@ -556,7 +832,7 @@ EOF
 ```
 
 > **Important**: Use the actual **job names** from your workflow, not the workflow name.
-> For example, use `"Lint & Format"` not `"Tests & Quality"`. You can find job names
+> For example, use `"Merge Ready (gtg)"` not `"PR Checks"`. You can find job names
 > in the GitHub Actions UI or by running `gh pr checks <pr-number>`.
 
 > **Note**: The defaults above provide maximum protection. See Configuration Options
@@ -567,7 +843,7 @@ EOF
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `required_status_checks.strict` | `true` | Require branches to be up to date before merging |
-| `required_status_checks.contexts` | `["gtg-check"]` | Status checks that must pass |
+| `required_status_checks.contexts` | `["Merge Ready (gtg)"]` | Status checks that must pass |
 | `enforce_admins` | `true` | **When `true`**: Admins must follow all rules (no bypass). **When `false`**: Admins can merge without passing checks, push directly to main, etc. |
 | `allow_force_pushes` | `false` | **When `false`**: Force pushes to main are blocked for everyone. **When `true`**: Force pushes allowed (useful for rebasing, but can rewrite history). |
 
@@ -581,7 +857,7 @@ EOF
 1. Go to **Settings** > **Branches** > **Add branch protection rule**
 2. Set **Branch name pattern** to `main`
 3. Enable **Require status checks to pass before merging**
-4. Search for and select `gtg-check` (and any other required checks)
+4. Search for and select `Merge Ready (gtg)` (and any other required checks)
 5. Enable **Require branches to be up to date before merging**
 6. Optionally disable **Include administrators** to allow admin bypass
 7. Click **Create** or **Save changes**
@@ -598,7 +874,7 @@ Example output (with recommended defaults):
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["Lint & Format", "Tests (3.9)", "Type Check", "gtg-check"]
+    "contexts": ["lint", "test", "Merge Ready (gtg)"]
   },
   "enforce_admins": {
     "enabled": true
@@ -611,7 +887,7 @@ Example output (with recommended defaults):
 
 ### What Gets Blocked
 
-With `gtg-check` as a required status check:
+With `Merge Ready (gtg)` as a required status check:
 
 | Status | Can Merge? |
 |--------|------------|
@@ -625,3 +901,71 @@ This ensures PRs are only merged when:
 - All CI checks are passing
 - All actionable review comments are addressed
 - All review threads are resolved
+
+## Complete Setup Checklist (AI Agents)
+
+Here's a complete checklist for AI agents setting up GTG in a new repository:
+
+### 1. Create the Workflow File
+
+Create `.github/workflows/gtg.yml` with the workflow from the [Quick Setup](#quick-setup-ai-agent-instructions) section above.
+
+### 2. Configure Secrets
+
+```bash
+# Check if GTG_PAT secret exists
+gh secret list --repo OWNER/REPO | grep GTG_PAT
+
+# If not, the human needs to add it:
+# 1. Go to https://github.com/settings/tokens
+# 2. Create a Fine-grained or Classic token with repo access
+# 3. Add as secret: gh secret set GTG_PAT --repo OWNER/REPO
+```
+
+### 3. Enable Branch Protection
+
+```bash
+# Enable branch protection requiring GTG
+gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["Merge Ready (gtg)"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false
+}
+EOF
+```
+
+### 4. Verify Setup
+
+```bash
+# Create a test PR to verify the workflow runs
+git checkout -b test/gtg-setup
+echo "# Test" >> TEST.md
+git add TEST.md
+git commit -m "test: verify GTG workflow"
+git push -u origin test/gtg-setup
+gh pr create --title "test: verify GTG workflow" --body "Testing GTG setup"
+
+# Watch the workflow
+gh run watch
+
+# Clean up
+gh pr close --delete-branch
+```
+
+### 5. Customize Excludes
+
+Edit the workflow to exclude any AI reviewer checks that shouldn't block merges:
+
+```yaml
+--exclude-checks "Merge Ready (gtg)" \
+--exclude-checks "claude" \
+--exclude-checks "CodeRabbit" \
+--exclude-checks "Cursor Bugbot" \
+--exclude-checks "greptile"
+```
