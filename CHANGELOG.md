@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5] - 2026-01-19
+
+### Documentation
+
+- docs: Expand GitHub Actions integration with AI agent instructions
+- docs: Add dual trigger pattern (pull_request + pull_request_review)
+- docs: Add workflow_run pattern for complex CI pipelines
+- docs: Add manual re-run workflow for quick GTG checks
+- docs: Add Complete Setup Checklist for AI agents
+- docs: Update Branch Protection section with new job names
+
 ## [0.7.4] - 2026-01-17
 
 ### Documentation
