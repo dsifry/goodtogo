@@ -705,12 +705,20 @@ jobs:
           path: gtg-result.json
 ```
 
-### Advanced: Manual Re-run Workflow
+### GTG Re-run Workflow (Comment Trigger)
 
-Create a workflow for quick GTG re-checks without full CI:
+Create a workflow that allows re-running GTG without triggering full CI. This is useful when:
+
+- GTG shows "unresolved threads" but threads were just resolved
+- GTG ran before review comments were addressed
+- You need a fresh merge-readiness check without rebuilding
+
+**Two trigger methods:**
+1. **Comment on PR:** Type `/rerun-gtg` as a comment
+2. **Manual dispatch:** Run workflow with PR number input
 
 ```yaml
-name: GTG Manual Re-run
+name: GTG Re-run
 
 on:
   workflow_dispatch:
@@ -720,19 +728,52 @@ on:
         required: true
         type: number
 
+  issue_comment:
+    types: [created]
+
 permissions:
-  pull-requests: read
+  pull-requests: write  # write needed for reaction API
   contents: read
   checks: read
-  statuses: read
+  statuses: write
+  actions: read
 
 jobs:
-  gtg-check:
-    name: Merge Ready (gtg)
+  gtg-rerun:
+    name: GTG Re-run
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Only run on:
+    # 1. workflow_dispatch (manual trigger)
+    # 2. /rerun-gtg comment on a PR (not an issue)
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/rerun-gtg'))
 
     steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "number=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add reaction to comment
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            });
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -741,17 +782,152 @@ jobs:
       - name: Install gtg
         run: pip install gtg
 
+      - name: Get PR head SHA
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ steps.pr.outputs.number }}
+          HEAD_SHA=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER --jq '.head.sha')
+          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
+
       - name: Check PR readiness
+        id: gtg
         env:
           GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
         run: |
-          gtg ${{ github.event.inputs.pr_number }} \
+          set -o pipefail
+          PR_NUMBER=${{ steps.pr.outputs.number }}
+
+          set +e
+          gtg ${PR_NUMBER} \
             --repo ${{ github.repository }} \
             --semantic-codes \
             --format text \
             --verbose \
-            --exclude-checks "Merge Ready (gtg)"
+            --exclude-checks "Merge Ready (gtg)" \
+            --exclude-checks "GTG Re-run" 2>&1 | tee gtg-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          case $EXIT_CODE in
+            0)
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "message=✅ Good to Go!" >> $GITHUB_OUTPUT
+              ;;
+            1)
+              # Allow if threads resolved but ambiguous comments exist
+              if grep -q "Threads:.*resolved" gtg-output.txt && ! grep -q "unresolved" gtg-output.txt; then
+                echo "status=success" >> $GITHUB_OUTPUT
+                echo "message=⚠️ Comments exist but threads resolved" >> $GITHUB_OUTPUT
+              else
+                echo "status=failure" >> $GITHUB_OUTPUT
+                echo "message=❌ Actionable comments" >> $GITHUB_OUTPUT
+                exit 1
+              fi
+              ;;
+            2)
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "message=❌ Unresolved threads" >> $GITHUB_OUTPUT
+              exit 2
+              ;;
+            3)
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "message=❌ CI failing" >> $GITHUB_OUTPUT
+              exit 3
+              ;;
+            *)
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "message=❌ Error" >> $GITHUB_OUTPUT
+              exit $EXIT_CODE
+              ;;
+          esac
+
+      - name: Post status to PR
+        if: always() && steps.sha.outputs.head_sha != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATE=$([ "${{ steps.gtg.outputs.status }}" = "success" ] && echo "success" || echo "failure")
+          gh api repos/${{ github.repository }}/statuses/${{ steps.sha.outputs.head_sha }} \
+            -f state="$STATE" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f description="${{ steps.gtg.outputs.message }}" \
+            -f context="gtg-check"
+
+      - name: Update reaction on success
+        if: github.event_name == 'issue_comment' && steps.gtg.outputs.status == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reactions = await github.rest.reactions.listForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+            });
+            const eyesReaction = reactions.data.find(r => r.content === 'eyes' && r.user.type === 'Bot');
+            if (eyesReaction) {
+              await github.rest.reactions.deleteForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: context.payload.comment.id,
+                reaction_id: eyesReaction.id,
+              });
+            }
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: Update reaction on failure
+        if: github.event_name == 'issue_comment' && steps.gtg.outputs.status == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const reactions = await github.rest.reactions.listForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+            });
+            const eyesReaction = reactions.data.find(r => r.content === 'eyes' && r.user.type === 'Bot');
+            if (eyesReaction) {
+              await github.rest.reactions.deleteForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: context.payload.comment.id,
+                reaction_id: eyesReaction.id,
+              });
+            }
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'confused'
+            });
 ```
+
+#### Comment Trigger Feedback
+
+When triggered via `/rerun-gtg` comment:
+
+| Stage | Reaction | Meaning |
+|-------|----------|---------|
+| Running | 👀 | GTG check in progress |
+| Success | 🚀 | PR is ready to merge |
+| Failure | 😕 | Issues found |
+
+#### When to Use `/rerun-gtg`
+
+| Scenario | Use `/rerun-gtg`? |
+|----------|-------------------|
+| Resolved review threads | ✅ Yes |
+| Addressed reviewer comments | ✅ Yes |
+| Need fresh readiness check | ✅ Yes |
+| CI tests failing | ❌ No - push fixes |
+| Code changes needed | ❌ No - push commits |
+| Lint/type errors | ❌ No - needs full CI |
 
 ### Token Configuration
 
@@ -906,11 +1082,17 @@ This ensures PRs are only merged when:
 
 Here's a complete checklist for AI agents setting up GTG in a new repository:
 
-### 1. Create the Workflow File
+### 1. Create the Main GTG Workflow File
 
 Create `.github/workflows/gtg.yml` with the workflow from the [Quick Setup](#quick-setup-ai-agent-instructions) section above.
 
-### 2. Configure Secrets
+### 2. Create the GTG Re-run Workflow File
+
+Create `.github/workflows/gtg-rerun.yml` with the workflow from the [GTG Re-run Workflow](#gtg-re-run-workflow-comment-trigger) section. This enables:
+- `/rerun-gtg` comment trigger on PRs
+- Manual workflow dispatch for quick re-checks
+
+### 3. Configure Secrets
 
 ```bash
 # Check if GTG_PAT secret exists
@@ -922,7 +1104,7 @@ gh secret list --repo OWNER/REPO | grep GTG_PAT
 # 3. Add as secret: gh secret set GTG_PAT --repo OWNER/REPO
 ```
 
-### 3. Enable Branch Protection
+### 4. Enable Branch Protection
 
 ```bash
 # Enable branch protection requiring GTG
@@ -940,7 +1122,7 @@ gh api repos/OWNER/REPO/branches/main/protection -X PUT --input - <<'EOF'
 EOF
 ```
 
-### 4. Verify Setup
+### 5. Verify Setup
 
 ```bash
 # Create a test PR to verify the workflow runs
@@ -958,14 +1140,77 @@ gh run watch
 gh pr close --delete-branch
 ```
 
-### 5. Customize Excludes
+### 6. Test the Re-run Trigger
 
-Edit the workflow to exclude any AI reviewer checks that shouldn't block merges:
+After setup, test the `/rerun-gtg` comment trigger:
+
+```bash
+# On an existing PR, add a comment
+gh pr comment <PR_NUMBER> --body "/rerun-gtg"
+
+# Watch for the GTG Re-run workflow
+gh run list --workflow=gtg-rerun.yml --limit=1
+```
+
+You should see:
+1. 👀 reaction added to your comment
+2. GTG Re-run workflow starts
+3. 🚀 (success) or 😕 (failure) replaces the eyes reaction
+
+### 7. Customize Excludes
+
+Edit both workflow files to exclude any AI reviewer checks that shouldn't block merges:
 
 ```yaml
 --exclude-checks "Merge Ready (gtg)" \
+--exclude-checks "GTG Re-run" \
 --exclude-checks "claude" \
 --exclude-checks "CodeRabbit" \
 --exclude-checks "Cursor Bugbot" \
 --exclude-checks "greptile"
 ```
+
+## Using GTG with PR Shepherd Workflows
+
+When using GTG with automated PR monitoring (e.g., PR shepherd agents), the `/rerun-gtg` trigger is particularly useful:
+
+### Automated Thread Resolution Flow
+
+1. **Agent resolves review threads** - Pushes fixes, marks threads resolved
+2. **GTG still shows "unresolved"** - Due to stale data from previous run
+3. **Agent triggers `/rerun-gtg`** - Fresh check without full CI rebuild
+4. **GTG updates status** - 🚀 Ready to merge (or 😕 more issues found)
+
+### Example Agent Integration
+
+```python
+import subprocess
+
+def trigger_gtg_rerun(pr_number: int, repo: str):
+    """Trigger GTG re-run via comment."""
+    subprocess.run([
+        "gh", "pr", "comment", str(pr_number),
+        "--repo", repo,
+        "--body", "/rerun-gtg"
+    ], check=True)
+
+def trigger_gtg_rerun_manual(pr_number: int, repo: str):
+    """Trigger GTG re-run via workflow dispatch."""
+    subprocess.run([
+        "gh", "workflow", "run", "gtg-rerun.yml",
+        "--repo", repo,
+        "-f", f"pr_number={pr_number}"
+    ], check=True)
+```
+
+### When NOT to Use `/rerun-gtg`
+
+The re-run trigger only checks merge readiness - it does NOT:
+- Re-run CI tests
+- Re-run linting or type checking
+- Push any code changes
+
+If CI is failing, push fixes and let full CI run. Only use `/rerun-gtg` when:
+- Thread resolution status needs refreshing
+- Review comment state has changed
+- You need a quick status update without rebuilding
