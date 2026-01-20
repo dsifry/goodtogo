@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Features
+
+- feat: Add `/rerun-gtg` comment trigger for quick merge-readiness checks
+- feat: Add GTG Re-run workflow with dual triggers (comment + manual dispatch)
+- feat: Add emoji reactions for comment-triggered runs (👀 → 🚀/😕)
+- feat: Add exit code 1 special handling (allow merge if threads resolved)
+
+### Documentation
+
+- docs: Add GTG Re-run workflow documentation with full examples
+- docs: Add PR shepherd integration guide with Python examples
+- docs: Expand AI agent setup checklist to 7 steps
+
 ## [0.7.5] - 2026-01-19
 
 ### Documentation

@@ -122,6 +122,23 @@ Make `gtg` a required status check. PRs can't merge until they're truly ready—
   run: gtg ${{ github.event.pull_request.number }} --semantic-codes
 ```
 
+### Quick Re-runs with `/rerun-gtg`
+When you've resolved threads or addressed comments, trigger a quick re-check without rebuilding CI:
+
+```text
+/rerun-gtg
+```
+
+Comment this on any PR to get instant feedback:
+- 👀 Check in progress
+- 🚀 Ready to merge
+- 😕 Issues found
+
+Or trigger manually via workflow dispatch:
+```bash
+gh workflow run gtg-rerun.yml -f pr_number=123
+```
+
 ### In Agent Workflows
 Give your AI agent a definitive answer instead of endless polling:
 
@@ -150,6 +167,11 @@ while true; do
   esac
   sleep 60
 done
+```
+
+After resolving threads, trigger a quick re-check:
+```bash
+gh pr comment 123 --body "/rerun-gtg"
 ```
 
 ## Quick Start
