@@ -108,7 +108,8 @@ jobs:
             --exclude-checks "gtg-check" \
             --exclude-checks "GTG Re-run" \
             --exclude-checks "Claude Code Review" \
-            --exclude-checks "claude" 2>&1 | tee gtg-output.txt
+            --exclude-checks "claude" \
+            --exclude-checks "CodeRabbit" 2>&1 | tee gtg-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e  # Re-enable errexit
 
