@@ -64,7 +64,7 @@ gtg <pr_number> --repo <owner/repo> [OPTIONS]
 | `--cache` | Cache backend: `sqlite` (default), `redis`, or `none` |
 | `--cache-path` | SQLite cache path (default: `.goodtogo/cache.db`) |
 | `--redis-url` | Redis URL (required if `--cache=redis`, or set `REDIS_URL` env var) |
-| `--exclude-checks`, `-x` | CI check names to exclude (can be repeated, e.g., `-x slow-tests -x optional-lint`) |
+| `--exclude-checks`, `-x` | CI check names to exclude using **exact matching** (can be repeated, e.g., `-x claude-review -x CodeRabbit`) |
 | `--verbose`, `-v` | Show detailed output (includes ambiguous comments) |
 | `-q`, `--quiet` | Quiet mode: no output, use semantic exit codes (like `grep -q`) |
 | `--semantic-codes` | Use semantic exit codes (0=ready, 1=action, 2=threads, 3=ci, 4=error) |
@@ -520,8 +520,9 @@ jobs:
             --format text \
             --verbose \
             --exclude-checks "Merge Ready (gtg)" \
-            --exclude-checks "claude" \
-            --exclude-checks "CodeRabbit" 2>&1 | tee gtg-output.txt
+            --exclude-checks "claude-review" \
+            --exclude-checks "CodeRabbit" \
+            --exclude-checks "Greptile Review" 2>&1 | tee gtg-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
@@ -579,6 +580,8 @@ This means when you resolve review threads, GTG re-runs immediately without wait
 
 #### Excluding Checks
 
+**Important:** `--exclude-checks` uses **exact name matching**. Use the exact check name as shown in GitHub's PR checks list.
+
 Always exclude GTG from its own evaluation to avoid circular dependencies:
 
 ```bash
@@ -588,10 +591,12 @@ Always exclude GTG from its own evaluation to avoid circular dependencies:
 Also exclude AI reviewer checks that don't block merges:
 
 ```bash
---exclude-checks "claude" \
+--exclude-checks "claude-review" \
 --exclude-checks "CodeRabbit" \
---exclude-checks "Cursor Bugbot"
+--exclude-checks "Greptile Review"
 ```
+
+> **Finding exact check names:** Run `gh pr checks <PR_NUMBER>` to see the exact names of all checks on a PR.
 
 #### Semantic Exit Codes
 
@@ -807,7 +812,10 @@ jobs:
             --format text \
             --verbose \
             --exclude-checks "Merge Ready (gtg)" \
-            --exclude-checks "GTG Re-run" 2>&1 | tee gtg-output.txt
+            --exclude-checks "GTG Re-run" \
+            --exclude-checks "claude-review" \
+            --exclude-checks "CodeRabbit" \
+            --exclude-checks "Greptile Review" 2>&1 | tee gtg-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
@@ -1165,16 +1173,19 @@ You should see:
 
 ### 7. Customize Excludes
 
-Edit both workflow files to exclude any AI reviewer checks that shouldn't block merges:
+Edit both workflow files to exclude any AI reviewer checks that shouldn't block merges.
+
+**Important:** Use **exact check names** as shown in `gh pr checks`. Common names:
 
 ```yaml
 --exclude-checks "Merge Ready (gtg)" \
 --exclude-checks "GTG Re-run" \
---exclude-checks "claude" \
+--exclude-checks "claude-review" \
 --exclude-checks "CodeRabbit" \
---exclude-checks "Cursor Bugbot" \
---exclude-checks "greptile"
+--exclude-checks "Greptile Review"
 ```
+
+> **Tip:** Run `gh pr checks <PR_NUMBER>` on an existing PR to see the exact check names used in your repo.
 
 ## Using GTG with PR Shepherd Workflows
 
