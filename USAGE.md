@@ -451,9 +451,10 @@ Good To Go integrates with GitHub Actions to automate PR readiness checks. This 
 **For AI agents:** To set up GTG in a repository, follow these steps:
 
 1. **Create the workflow file** at `.github/workflows/gtg.yml`
-2. **Create or update a GitHub PAT** with `repo` scope (or use `GITHUB_TOKEN` for public repos)
-3. **Add the secret** `GTG_PAT` to the repository (Settings → Secrets → Actions)
-4. **Add branch protection** requiring the `Merge Ready (gtg)` check
+2. **Use `GITHUB_TOKEN`** (automatically provided by GitHub Actions, works for most repos)
+3. **Add branch protection** requiring the `Merge Ready (gtg)` check
+
+> **Note:** For private repos or if you need enhanced API permissions, create a PAT with `repo` scope and add it as a repository secret.
 
 Here's the complete workflow to create:
 
@@ -507,7 +508,7 @@ jobs:
 
       - name: Check PR readiness
         env:
-          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
           echo "Checking PR #${{ github.event.pull_request.number }} readiness..."
@@ -658,7 +659,7 @@ jobs:
       - name: Run gtg check
         id: gtg
         env:
-          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set +e
           gtg ${{ steps.pr.outputs.pr_number }} \
@@ -794,7 +795,7 @@ jobs:
       - name: Check PR readiness
         id: gtg
         env:
-          GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
           PR_NUMBER=${{ steps.pr.outputs.number }}
@@ -933,24 +934,29 @@ When triggered via `/rerun-gtg` comment:
 
 GTG needs a GitHub token with appropriate permissions.
 
-#### Option 1: Personal Access Token (Recommended)
+#### Option 1: Default GITHUB_TOKEN (Recommended)
+
+The automatic `GITHUB_TOKEN` works for most repositories and requires no setup:
+
+```yaml
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+#### Option 2: Personal Access Token (Advanced)
+
+For private repos or enhanced permissions, create a PAT:
 
 1. Go to [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
 2. Create a **Fine-grained token** with:
    - Repository access: Select your repositories
    - Permissions: `Pull requests: Read`, `Contents: Read`, `Checks: Read`
 3. Or create a **Classic token** with `repo` scope
-4. Add as repository secret named `GTG_PAT`
-
-#### Option 2: Default GITHUB_TOKEN
-
-For public repositories or basic checks, `GITHUB_TOKEN` works but has limitations:
-- Cannot read some check run details
-- Cannot access cross-repository data
+4. Add as repository secret (e.g., `GTG_PAT`)
 
 ```yaml
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GTG_PAT }}
 ```
 
 ### Key Configuration Points
@@ -1092,16 +1098,16 @@ Create `.github/workflows/gtg-rerun.yml` with the workflow from the [GTG Re-run 
 - `/rerun-gtg` comment trigger on PRs
 - Manual workflow dispatch for quick re-checks
 
-### 3. Configure Secrets
+### 3. Token Configuration
 
+The workflows use `GITHUB_TOKEN` which is automatically provided by GitHub Actions - no secret configuration needed.
+
+**For private repos or enhanced permissions**, create a PAT:
 ```bash
-# Check if GTG_PAT secret exists
-gh secret list --repo OWNER/REPO | grep GTG_PAT
-
-# If not, the human needs to add it:
 # 1. Go to https://github.com/settings/tokens
 # 2. Create a Fine-grained or Classic token with repo access
 # 3. Add as secret: gh secret set GTG_PAT --repo OWNER/REPO
+# 4. Update workflows to use secrets.GTG_PAT instead of secrets.GITHUB_TOKEN
 ```
 
 ### 4. Enable Branch Protection
