@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: Add GTG Re-run workflow documentation with full examples
 - docs: Add PR shepherd integration guide with Python examples
 - docs: Expand AI agent setup checklist to 7 steps
+- docs: Standardize on GITHUB_TOKEN in workflow examples (PAT optional for private repos)
 
 ## [0.7.5] - 2026-01-19
 
