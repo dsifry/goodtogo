@@ -7,19 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-20
+
 ### Features
 
-- feat: Add `/rerun-gtg` comment trigger for quick merge-readiness checks
+- feat: Add `/rerun-gtg` comment trigger for quick merge-readiness checks (#33)
 - feat: Add GTG Re-run workflow with dual triggers (comment + manual dispatch)
 - feat: Add emoji reactions for comment-triggered runs (👀 → 🚀/😕)
 - feat: Add exit code 1 special handling (allow merge if threads resolved)
 
+### Bug Fixes
+
+- fix: Use exact check names in --exclude-checks (gtg uses exact matching)
+
 ### Documentation
 
+- docs: Clarify --exclude-checks uses exact name matching
 - docs: Add GTG Re-run workflow documentation with full examples
 - docs: Add PR shepherd integration guide with Python examples
 - docs: Expand AI agent setup checklist to 7 steps
 - docs: Standardize on GITHUB_TOKEN in workflow examples (PAT optional for private repos)
+- docs: Replace static coverage badge with dynamic CI status badge
 
 ## [0.7.5] - 2026-01-19
 
