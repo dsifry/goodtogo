@@ -3,7 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/gtg.svg)](https://badge.fury.io/py/gtg)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/dsifry/goodtogo)
+[![Tests](https://github.com/dsifry/goodtogo/actions/workflows/tests.yml/badge.svg)](https://github.com/dsifry/goodtogo/actions/workflows/tests.yml)
 
 **Deterministic PR readiness detection for AI coding agents**
 
