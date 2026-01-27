@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-01-27
+
+### Documentation
+
+- docs: Add agent customization guide to USAGE.md (adding, modifying, file format)
+- docs: Add agent workflows and orchestration guide to USAGE.md (phases, dependencies, custom workflows)
+
 ## [0.8.0] - 2026-01-20
 
 ### Features
