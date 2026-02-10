@@ -77,12 +77,12 @@ For any function with compound boolean conditions (2+ conditions joined by `&&` 
 
 Example decision table for `needsRefresh`:
 
-| Condition              | Baseline (all false) | Test A (toggle 1) | Test B (toggle 2) | Test C (toggle 3) |
-| ---------------------- | -------------------- | ----------------- | ----------------- | ----------------- |
-| salesIntelligence null | false                | **true**          | false             | false             |
-| options.force          | false                | false             | **true**          | false             |
-| data stale             | false                | false             | false             | **true**          |
-| **Result**             | no refresh           | **refresh**       | **refresh**       | **refresh**       |
+| Condition                             | Baseline (all false) | Test A (toggle 1) | Test B (toggle 2) | Test C (toggle 3) |
+| ------------------------------------- | -------------------- | ----------------- | ----------------- | ----------------- |
+| salesIntelligence === null            | false                | **true**          | false             | false             |
+| options.force === true                | false                | false             | **true**          | false             |
+| daysSinceUpdate > staleThreshold      | false                | false             | false             | **true**          |
+| **Result**                            | no refresh           | **refresh**       | **refresh**       | **refresh**       |
 
 Use `describe("functionName — MC/DC")` to group these tests distinctly. Document the decision table either in a spec or as an inline comment above the compound boolean in the source.
 
