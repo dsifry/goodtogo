@@ -171,6 +171,98 @@ git diff --name-only | grep -E '\.test\.(ts|js|tsx|jsx)$'
 # 4. Do tests still verify the same behavior?
 ```
 
+## Testing Compound Boolean Logic (MC/DC)
+
+When a function contains a compound boolean expression (2+ conditions joined by `&&` or `||`), standard branch coverage only requires two tests: one where the whole expression is true, one where it's false. This means individual conditions can be wrong, missing, or using the wrong operator (`&&` vs `||`) without any test noticing.
+
+**MC/DC (Modified Condition/Decision Coverage)** requires that each condition in a compound boolean is proven to independently affect the outcome. For `n` conditions, you need `n+1` tests minimum — far fewer than exhaustive `2^n`, but far more precise than branch coverage's 2.
+
+### When to Apply MC/DC
+
+Apply MC/DC to compound boolean expressions in:
+
+- **Authorization guards** — conditions that gate access to operations
+- **Eligibility/business rules** — scoring thresholds, feature flags, refresh logic
+- **Validation logic** — multi-field input validation
+- **State machine transitions** — compound conditions that determine next state
+
+Do **not** apply MC/DC to simple single-condition checks (`if (user === null)`, `if (!isValid)`). Branch coverage is sufficient for those.
+
+### Prerequisite: Decision Tables
+
+Before writing MC/DC tests, document the decision table — either in a spec or as an inline comment above the compound boolean:
+
+```typescript
+// Decision table: needsRefresh
+// | Condition                        | Purpose                                |
+// | salesIntelligence === null        | Never been processed                   |
+// | options.force === true            | Caller explicitly requests refresh     |
+// | daysSinceUpdate > staleThreshold  | Data has gone stale                    |
+// Any condition being true triggers refresh. Each independently testable via MC/DC.
+```
+
+### The Pattern: Baseline + Toggle Each Condition
+
+```typescript
+describe("needsRefresh — MC/DC", () => {
+  // Baseline: all conditions false → no refresh needed
+  it("does not refresh when data is fresh and not forced", () => {
+    const contact = createMockContact({
+      salesIntelligence: createMockSalesIntelligence(),
+      salesIntelligenceUpdatedAt: new Date(), // fresh
+    });
+    expect(SalesIntelligenceService.needsRefresh(contact)).toBe(false);
+  });
+
+  // Toggle salesIntelligence alone → refresh (proves null check matters)
+  it("refreshes when salesIntelligence is null (other conditions false)", () => {
+    const contact = createMockContact({
+      salesIntelligence: null, // ← only this changed
+      salesIntelligenceUpdatedAt: new Date(),
+    });
+    expect(SalesIntelligenceService.needsRefresh(contact)).toBe(true);
+  });
+
+  // Toggle force alone → refresh (proves force flag matters)
+  it("refreshes when force is true (other conditions false)", () => {
+    const contact = createMockContact({
+      salesIntelligence: createMockSalesIntelligence(),
+      salesIntelligenceUpdatedAt: new Date(),
+    });
+    expect(
+      SalesIntelligenceService.needsRefresh(contact, { force: true }), // ← only this changed
+    ).toBe(true);
+  });
+
+  // Toggle staleness alone → refresh (proves stale threshold matters)
+  it("refreshes when data is stale (other conditions false)", () => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const contact = createMockContact({
+      salesIntelligence: createMockSalesIntelligence(),
+      salesIntelligenceUpdatedAt: thirtyDaysAgo, // ← only this changed
+    });
+    expect(SalesIntelligenceService.needsRefresh(contact)).toBe(true);
+  });
+});
+```
+
+Key points:
+
+- **`— MC/DC` in the describe** makes these tests visually distinct and searchable
+- **Each test name says what single condition changed** and what the expected effect is
+- **Each test changes exactly ONE condition** from the baseline, keeping all others fixed
+- **Each test proves that one condition independently flips the outcome**
+
+### What MC/DC Catches That Branch Coverage Misses
+
+- Wrong operator: `&&` where `||` was intended (or vice versa)
+- Missing condition: a guard clause deleted, but branch coverage still passes on other conditions
+- Dead condition: a condition that can never be false due to upstream logic
+- Masked condition: short-circuit evaluation prevents a condition from being evaluated
+
+---
+
 ## Mock Factory Patterns
 
 ### Overview of Mock Factories
@@ -242,7 +334,10 @@ Mock factories are centralized functions that create consistent, type-safe test 
 #### Basic Usage
 
 ```typescript
-import { createMockContact, createMockSalesIntelligence } from "@/lib/services/mock-factories";
+import {
+  createMockContact,
+  createMockSalesIntelligence,
+} from "@/lib/services/mock-factories";
 
 // Create with defaults
 const contact = createMockContact();

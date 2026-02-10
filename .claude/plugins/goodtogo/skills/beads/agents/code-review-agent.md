@@ -124,6 +124,7 @@ For each changed file, evaluate against the rubric:
 - Tests are meaningful
 - Mocks use factories
 - No real API calls
+- Compound boolean expressions (auth/eligibility/validation) have per-condition independence tests — each condition proven to independently flip the outcome (MC/DC)
 
 #### Performance Check
 
@@ -279,6 +280,7 @@ bd label add <task-id> needs:fixes
 - [ ] Mocks use factories
 - [ ] No real API calls
 - [ ] Edge cases tested
+- [ ] Compound boolean logic has MC/DC tests (each condition independently tested)
 
 ### Performance
 
@@ -370,6 +372,7 @@ bd dep add <pr-task> <perf-task>
 - Tests that always pass
 - Mocking internal implementation
 - Missing error path tests
+- Compound boolean tested only as aggregate (branch coverage passes but individual conditions not independently verified — wrong operator or missing condition would go undetected)
 - Real API calls in tests
 
 ### Performance

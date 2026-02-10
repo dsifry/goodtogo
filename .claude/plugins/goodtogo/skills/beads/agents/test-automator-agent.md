@@ -67,6 +67,27 @@ For each component to test:
 | API Route      | HTTP handling       | Mock services     |
 | Adapter        | External API        | Mock HTTP client  |
 
+### Step 2b: Decision Table Analysis (for compound boolean logic)
+
+For any function with compound boolean conditions (2+ conditions joined by `&&` or `||`), especially in authorization, eligibility, or validation logic:
+
+1. **Extract the decision table** — list each condition and why it exists
+2. **Design MC/DC test cases** — for `n` conditions, you need `n+1` tests minimum
+3. **Each test changes exactly ONE condition** from the baseline, flipping the outcome
+
+Example decision table for `needsRefresh`:
+
+| Condition              | Baseline (all false) | Test A (toggle 1) | Test B (toggle 2) | Test C (toggle 3) |
+| ---------------------- | -------------------- | ----------------- | ----------------- | ----------------- |
+| salesIntelligence null | false                | **true**          | false             | false             |
+| options.force          | false                | false             | **true**          | false             |
+| data stale             | false                | false             | false             | **true**          |
+| **Result**             | no refresh           | **refresh**       | **refresh**       | **refresh**       |
+
+Use `describe("functionName — MC/DC")` to group these tests distinctly. Document the decision table either in a spec or as an inline comment above the compound boolean in the source.
+
+**Reference**: `.claude/guides/testing-patterns.md` → "Testing Compound Boolean Logic (MC/DC)"
+
 ### Step 3: Write Tests FIRST (RED Phase)
 
 ```typescript
@@ -104,14 +125,18 @@ describe("FeatureService", () => {
     it("should throw ValidationError for empty input", async () => {
       const input = { value: "" };
 
-      await expect(service.processData(input)).rejects.toThrow("Validation failed");
+      await expect(service.processData(input)).rejects.toThrow(
+        "Validation failed",
+      );
     });
 
     it("should handle dependency failure gracefully", async () => {
       const input = { value: "test" };
       mockDep.transform.mockRejectedValue(new Error("Dependency failed"));
 
-      await expect(service.processData(input)).rejects.toThrow("Processing failed");
+      await expect(service.processData(input)).rejects.toThrow(
+        "Processing failed",
+      );
     });
   });
 });
@@ -146,7 +171,9 @@ After initial implementation, add:
 ```typescript
 describe("edge cases", () => {
   it("should handle null input", async () => {
-    await expect(service.processData(null as any)).rejects.toThrow("Input required");
+    await expect(service.processData(null as any)).rejects.toThrow(
+      "Input required",
+    );
   });
 
   it("should handle very long input", async () => {
@@ -327,7 +354,9 @@ When new factories are needed, add to `mock-factories.ts`:
  * @example
  * const entity = createMockNewEntity({ status: 'active' });
  */
-export function createMockNewEntity(overrides: Partial<NewEntity> = {}): NewEntity {
+export function createMockNewEntity(
+  overrides: Partial<NewEntity> = {},
+): NewEntity {
   return createMock<NewEntity>({
     id: faker.string.uuid(),
     name: faker.company.name(),
@@ -351,6 +380,7 @@ For each method, ensure:
 - [ ] Permission denied (auth failures)
 - [ ] External failure (API/DB errors)
 - [ ] Edge cases (null, empty, boundary values)
+- [ ] Compound boolean logic (auth, eligibility, validation) has MC/DC tests with decision table
 
 ---
 
