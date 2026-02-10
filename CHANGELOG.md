@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-09
+
+### Documentation
+
+- docs: Add MC/DC (Modified Condition/Decision Coverage) testing methodology to workflow infrastructure (#36)
+  - New MC/DC section in testing-patterns.md with decision tables and baseline+toggle pattern
+  - Test automator agent updated with Step 2b Decision Table Analysis
+  - Code review agent rubric extended with MC/DC evaluation criteria
+  - Fixed `as any` contradiction in test-automator examples (replaced with `// @ts-expect-error`)
+  - Aligned decision table condition names with explicit boolean expressions
+
 ## [0.8.1] - 2026-01-27
 
 ### Documentation
