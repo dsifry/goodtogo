@@ -171,7 +171,8 @@ After initial implementation, add:
 ```typescript
 describe("edge cases", () => {
   it("should handle null input", async () => {
-    await expect(service.processData(null as any)).rejects.toThrow(
+    // @ts-expect-error — deliberately passing null to verify runtime guard
+    await expect(service.processData(null)).rejects.toThrow(
       "Input required",
     );
   });
