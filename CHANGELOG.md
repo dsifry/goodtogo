@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-02-18
+
+### Features
+
+- feat: Add Vercel deployment bot support (#37)
+  - New VercelParser classifies all Vercel bot comments as NON_ACTIONABLE
+  - Prevents false ACTION_REQUIRED status from deployment notifications
+  - Author detection: `vercel[bot]`
+  - Fallback body signature detection: `[vc]:`, `vercel.com`, `.vercel.app` URLs
+
 ## [0.9.0] - 2026-02-09
 
 ### Documentation

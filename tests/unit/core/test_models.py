@@ -168,7 +168,15 @@ class TestReviewerTypeEnum:
 
     def test_all_enum_values_exist(self):
         """All expected ReviewerType values are defined."""
-        expected_values = {"coderabbit", "greptile", "claude", "cursor", "human", "unknown"}
+        expected_values = {
+            "coderabbit",
+            "greptile",
+            "claude",
+            "cursor",
+            "vercel",
+            "human",
+            "unknown",
+        }
         actual_values = {reviewer_type.value for reviewer_type in ReviewerType}
         assert actual_values == expected_values
 

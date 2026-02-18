@@ -36,6 +36,7 @@ from goodtogo.parsers.coderabbit import CodeRabbitParser
 from goodtogo.parsers.cursor import CursorBugbotParser
 from goodtogo.parsers.generic import GenericParser
 from goodtogo.parsers.greptile import GreptileParser
+from goodtogo.parsers.vercel import VercelParser
 
 
 class MockGitHubAdapter(GitHubPort):
@@ -310,6 +311,7 @@ def _create_default_parsers() -> dict[ReviewerType, ReviewerParser]:
         - GREPTILE: GreptileParser
         - CLAUDE: ClaudeCodeParser
         - CURSOR: CursorBugbotParser
+        - VERCEL: VercelParser
         - HUMAN: GenericParser (fallback)
         - UNKNOWN: GenericParser (fallback)
     """
@@ -318,6 +320,7 @@ def _create_default_parsers() -> dict[ReviewerType, ReviewerParser]:
         ReviewerType.GREPTILE: GreptileParser(),
         ReviewerType.CLAUDE: ClaudeCodeParser(),
         ReviewerType.CURSOR: CursorBugbotParser(),
+        ReviewerType.VERCEL: VercelParser(),
         ReviewerType.HUMAN: GenericParser(),
         ReviewerType.UNKNOWN: GenericParser(),
     }

@@ -563,6 +563,7 @@ class PRAnalyzer:
             ReviewerType.CLAUDE,
             ReviewerType.GREPTILE,
             ReviewerType.CURSOR,
+            ReviewerType.VERCEL,
         ]
 
         for reviewer_type in parser_order:

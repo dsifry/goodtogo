@@ -90,6 +90,9 @@ class ReviewerType(str, Enum):
     CURSOR = "cursor"
     """Cursor/Bugbot code reviewer."""
 
+    VERCEL = "vercel"
+    """Vercel deployment bot."""
+
     HUMAN = "human"
     """Human reviewer (not automated)."""
 
